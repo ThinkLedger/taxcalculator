@@ -5,6 +5,11 @@ import * as XLSX from "xlsx";
 import type { TaxCalculationResult } from "./calculator";
 import type { VATCalculationResult } from "./vat-calculator";
 
+// Parse formatted input back to number string (remove commas)
+function parseInputValue(value: string): string {
+  return value.replace(/,/g, "");
+}
+
 export type ExportFormat = "pdf" | "excel" | "csv";
 
 // Get Ghana Cedis symbol and decode HTML entity
@@ -100,9 +105,9 @@ export function exportPAYEToPDF(data: PAYEExportData): void {
 
   doc.setFontSize(10);
   const inputsData = [
-    ["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyBasicIncome || "0")}`],
-    ["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyAllowances || "0")}`],
-    ["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.taxRelief || "0")}`],
+    ["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyBasicIncome || "0"))}`],
+    ["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyAllowances || "0"))}`],
+    ["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.taxRelief || "0"))}`],
     ["Year", inputs.year],
     ["SSNIT Enabled", inputs.ssnitEnabled ? "Yes" : "No"],
   ];
@@ -287,7 +292,7 @@ export function exportVATToPDF(data: VATExportData): void {
     ["Calculation Mode", modeLabel],
     [
       inputs.mode === "exclusive" ? "Taxable Amount" : "Final Cost",
-      `${CURRENCY_SYMBOL} ${formatCurrency(inputs.amount || "0")}`,
+      `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.amount || "0"))}`,
     ],
     ["Year", inputs.year],
   ];
@@ -468,9 +473,9 @@ export function exportPAYEToExcel(data: PAYEExportData): void {
   // Inputs sheet
   const inputsData = [
     ["Field", "Value"],
-    ["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyBasicIncome || "0")}`],
-    ["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyAllowances || "0")}`],
-    ["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.taxRelief || "0")}`],
+    ["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyBasicIncome || "0"))}`],
+    ["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyAllowances || "0"))}`],
+    ["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.taxRelief || "0"))}`],
     ["Year", inputs.year],
     ["SSNIT Enabled", inputs.ssnitEnabled ? "Yes" : "No"],
   ];
@@ -550,9 +555,9 @@ export function exportPAYEToCSV(data: PAYEExportData): void {
   // Inputs
   rows.push(["Input Values"]);
   rows.push(["Field", "Value"]);
-  rows.push(["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyBasicIncome || "0")}`]);
-  rows.push(["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.monthlyAllowances || "0")}`]);
-  rows.push(["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(inputs.taxRelief || "0")}`]);
+  rows.push(["Monthly Basic Income", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyBasicIncome || "0"))}`]);
+  rows.push(["Monthly Allowances", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.monthlyAllowances || "0"))}`]);
+  rows.push(["Tax Relief", `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.taxRelief || "0"))}`]);
   rows.push(["Year", inputs.year]);
   rows.push(["SSNIT Enabled", inputs.ssnitEnabled ? "Yes" : "No"]);
   rows.push([]);
@@ -632,7 +637,7 @@ export function exportVATToExcel(data: VATExportData): void {
     ["Calculation Mode", modeLabel],
     [
       inputs.mode === "exclusive" ? "Taxable Amount" : "Final Cost",
-      `${CURRENCY_SYMBOL} ${formatCurrency(inputs.amount || "0")}`,
+      `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.amount || "0"))}`,
     ],
     ["Year", inputs.year],
   ];
@@ -736,7 +741,7 @@ export function exportVATToCSV(data: VATExportData): void {
   rows.push(["Calculation Mode", modeLabel]);
   rows.push([
     inputs.mode === "exclusive" ? "Taxable Amount" : "Final Cost",
-    `${CURRENCY_SYMBOL} ${formatCurrency(inputs.amount || "0")}`,
+    `${CURRENCY_SYMBOL} ${formatCurrency(parseInputValue(inputs.amount || "0"))}`,
   ]);
   rows.push(["Year", inputs.year]);
   rows.push([]);
