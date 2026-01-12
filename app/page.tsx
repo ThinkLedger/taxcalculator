@@ -106,7 +106,7 @@ export default function Home() {
       <div className="fixed top-4 right-4 z-10">
         <ThemeToggle />
         </div>
-      <div className="fixed bottom-4 left-4 z-10">
+      {/* <div className="fixed bottom-4 left-4 z-10">
         <p className="text-xs text-muted-foreground">
           Inspired by{" "}
           <a
@@ -118,7 +118,7 @@ export default function Home() {
             Kessir
           </a>
         </p>
-      </div>
+      </div> */}
       <div className="relative w-full max-w-6xl">
         <div
           className={`hidden lg:block absolute top-16 w-full max-w-sm transition-all duration-500 ease-in-out ${
