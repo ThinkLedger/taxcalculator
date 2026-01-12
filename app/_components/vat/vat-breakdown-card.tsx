@@ -141,6 +141,19 @@ export function VATBreakdownCard({ result }: VATBreakdownCardProps) {
             </AccordionContent>
           </AccordionItem>
 
+          <AccordionItem value="threshold">
+            <AccordionTrigger className="text-sm font-semibold">
+              VAT Registration Threshold
+            </AccordionTrigger>
+            <AccordionContent>
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>Service Providers: No threshold, unless directed by the GRA–Commissioner-General.</li>
+                <li>Manufacturers: Register if taxable supplies exceed GHS 750,000 in any 12-month period.</li>
+                <li>Retailers: Register if taxable supplies exceed GHS 750,000 in any 12-month period.</li>
+              </ol>
+            </AccordionContent>
+          </AccordionItem>
+
           <AccordionItem value="rates">
             <AccordionTrigger className="text-sm font-semibold">Rates Used</AccordionTrigger>
             <AccordionContent>
