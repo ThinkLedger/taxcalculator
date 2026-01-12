@@ -122,17 +122,35 @@ yarn build
 pnpm build
 ```
 
-Start the production server:
+The static files will be generated in the `out` directory.
+
+## Deploying to GitHub Pages
+
+This project is configured to deploy automatically to GitHub Pages using GitHub Actions.
+
+### Setup
+
+1. **Enable GitHub Pages in your repository:**
+   - Go to your repository on GitHub
+   - Click on **Settings** → **Pages**
+   - Under "Source", select **GitHub Actions**
+   - Save the settings
+
+2. **Push to main branch:**
+   - The GitHub Actions workflow will automatically build and deploy your site
+   - Your site will be available at: `https://fiifiofosu.github.io/taxcalculator/`
+
+### Manual Deployment
+
+If you want to build and test locally:
 
 ```bash
-bun start
+bun run build
 # or
-npm start
-# or
-yarn start
-# or
-pnpm start
+npm run build
 ```
+
+The static site will be in the `out` directory, ready to be deployed.
 
 ## Disclaimer
 
