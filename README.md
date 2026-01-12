@@ -138,7 +138,7 @@ This project is configured to deploy automatically to GitHub Pages using GitHub 
 
 2. **Push to main branch:**
    - The GitHub Actions workflow will automatically build and deploy your site
-   - Your site will be available at: `https://fiifiofosu.github.io/taxcalculator/`
+   - Your site will be available at: `https://thinkledger.github.io/taxcalculator/`
 
 ### Manual Deployment
 
