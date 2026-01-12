@@ -189,6 +189,11 @@ export default function Home() {
               Last updated: February 1st, 2024
             </p>
           )}
+          {calculatorType === "VAT" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: 1st January 2026
+            </p>
+          )}
 
           {/* Footer */}
           <footer className="pt-8 pb-4 space-y-3 text-center">
