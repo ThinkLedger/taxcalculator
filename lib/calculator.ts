@@ -1,5 +1,5 @@
 import { Decimal } from "decimal.js";
-import { monthlyTaxRates, SSNIT_RATE } from "./rates";
+import { getTaxRatesForYear, SSNIT_EMPLOYEE_RATE, SSNIT_EMPLOYER_RATE } from "./rates";
 
 export interface ComputationBreakdown {
   taxRate: number;
@@ -7,11 +7,21 @@ export interface ComputationBreakdown {
   amountTaxed: string;
 }
 
+export interface SSNITBreakdown {
+  employeeContribution: string;
+  employerContribution: string;
+  totalContribution: string;
+  employeeRate: number;
+  employerRate: number;
+  baseAmount: string;
+}
+
 export interface TaxCalculationResult {
   incomeTax: string;
   ssnit: string;
   netIncome: string;
   computationBreakdown: ComputationBreakdown[];
+  ssnitBreakdown: SSNITBreakdown;
 }
 
 export interface TaxCalculationError {
@@ -47,11 +57,15 @@ function computeTaxes({
   ssnitEnabled = true,
 }: ComputeTaxesParams): TaxCalculationResult {
   let totalTax = new Decimal(0);
-  const ssnitContribution = ssnitEnabled
-    ? new Decimal(grossIncome).times(SSNIT_RATE).dividedBy(100)
+  const employeeSsnitContribution = ssnitEnabled
+    ? new Decimal(grossIncome).times(SSNIT_EMPLOYEE_RATE).dividedBy(100)
     : new Decimal(0);
+  const employerSsnitContribution = ssnitEnabled
+    ? new Decimal(grossIncome).times(SSNIT_EMPLOYER_RATE).dividedBy(100)
+    : new Decimal(0);
+  const totalSsnitContribution = employeeSsnitContribution.plus(employerSsnitContribution);
 
-  const totalTaxRelief = ssnitContribution.plus(taxRelief);
+  const totalTaxRelief = employeeSsnitContribution.plus(taxRelief);
 
   let taxableRemaining = new Decimal(grossIncome)
     .minus(totalTaxRelief)
@@ -85,13 +99,21 @@ function computeTaxes({
   const netIncome = grossIncome
     .plus(allowances)
     .minus(totalTax)
-    .minus(ssnitContribution);
+    .minus(employeeSsnitContribution);
 
   return {
     incomeTax: totalTax.toFixed(2),
-    ssnit: ssnitContribution.toFixed(2),
+    ssnit: employeeSsnitContribution.toFixed(2),
     netIncome: netIncome.toFixed(2),
     computationBreakdown,
+    ssnitBreakdown: {
+      employeeContribution: employeeSsnitContribution.toFixed(2),
+      employerContribution: employerSsnitContribution.toFixed(2),
+      totalContribution: totalSsnitContribution.toFixed(2),
+      employeeRate: SSNIT_EMPLOYEE_RATE,
+      employerRate: SSNIT_EMPLOYER_RATE,
+      baseAmount: grossIncome.toFixed(2),
+    },
   };
 }
 
@@ -99,7 +121,8 @@ export function calculate(
   grossInput: string | number,
   allowancesInput: string | number,
   taxReliefInput: string | number,
-  ssnitEnabled: boolean = true
+  ssnitEnabled: boolean = true,
+  year: string = "2024"
 ): TaxCalculationResponse {
   let gross = grossInput;
   let allowances = allowancesInput;
@@ -123,11 +146,13 @@ export function calculate(
     return { errorMessage: "Please input valid amounts" };
   }
 
+  const taxRates = getTaxRatesForYear(year);
+
   return computeTaxes({
     grossIncome: new Decimal(gross),
     allowances: new Decimal(allowances),
     taxRelief: new Decimal(taxRelief),
-    taxRates: monthlyTaxRates.rates,
+    taxRates: taxRates.rates,
     ssnitEnabled,
   });
 }
