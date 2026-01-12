@@ -63,6 +63,18 @@ export default function Home() {
       <div className="fixed top-4 right-4 z-10">
         <ThemeToggle />
       </div>
+      <div className="fixed bottom-4 left-4 z-10">
+        <a
+          href="https://thinkledger.pro"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors"
+        >
+          <p className="font-medium">ThinkLedger</p>
+          <p className="text-[10px]">Accounting | CRM | Payroll</p>
+          <p className="text-[10px] italic">Coming soon</p>
+        </a>
+      </div>
       <div className="relative w-full max-w-6xl">
         {/* Desktop Config Card */}
         <div
