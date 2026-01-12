@@ -31,6 +31,16 @@ export default function Home() {
   const [ssnitEnabled, setSsnitEnabled] = useState(true);
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
 
+  // Auto-set year to 2026 when VAT is selected
+  const handleCalculatorTypeChange = (value: string) => {
+    setCalculatorType(value);
+    if (value === "VAT") {
+      setYear("2026");
+    } else if (value === "PAYE" && year === "2026") {
+      setYear("2024");
+    }
+  };
+
   const calculationResult = useMemo(() => {
     if (calculatorType !== "PAYE") return null;
     const parsedIncome = parseInputValue(monthlyBasicIncome);
@@ -65,7 +75,7 @@ export default function Home() {
         >
           <ConfigCard
             calculatorType={calculatorType}
-            onCalculatorTypeChange={setCalculatorType}
+            onCalculatorTypeChange={handleCalculatorTypeChange}
             country={country}
             onCountryChange={setCountry}
             year={year}
@@ -76,11 +86,19 @@ export default function Home() {
         </div>
 
         <main className="w-full max-w-sm mx-auto space-y-4">
-          <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
-            <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
-              ⚠️ Using {year} tax rates!
-            </p>
-          </div>
+          {calculatorType === "VAT" ? (
+            <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
+              <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                ⚠️ Using 2026 VAT rates!
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
+              <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                ⚠️ Using {year} tax rates!
+              </p>
+            </div>
+          )}
 
           {/* Calculator Component */}
           {calculatorType === "PAYE" ? (
@@ -106,7 +124,7 @@ export default function Home() {
               open={showMobileConfig}
               onOpenChange={setShowMobileConfig}
               calculatorType={calculatorType}
-              onCalculatorTypeChange={setCalculatorType}
+              onCalculatorTypeChange={handleCalculatorTypeChange}
               country={country}
               onCountryChange={setCountry}
               year={year}
@@ -154,9 +172,11 @@ export default function Home() {
             )}
           </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            Last updated: February 1st, 2024
-          </p>
+          {calculatorType === "PAYE" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: February 1st, 2024
+            </p>
+          )}
 
           {/* Footer */}
           <footer className="pt-8 pb-4 space-y-3 text-center">

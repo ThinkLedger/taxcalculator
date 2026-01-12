@@ -69,9 +69,15 @@ export function ConfigCard({
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2023">2023</SelectItem>
-                <SelectItem value="2022">2022</SelectItem>
+                {calculatorType === "VAT" ? (
+                  <SelectItem value="2026">2026</SelectItem>
+                ) : (
+                  <>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                    <SelectItem value="2022">2022</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
