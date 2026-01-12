@@ -2,11 +2,26 @@
 
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Twitter, Facebook, Linkedin, Share2 } from "lucide-react";
+import { Twitter, Facebook, Linkedin, Share2, Download, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { calculate, type TaxCalculationResult } from "@/lib/calculator";
 import type { VATCalculationResult } from "@/lib/vat-calculator";
 import { parseInputValue } from "./_components/utils";
+import {
+  exportPAYEToPDF,
+  exportVATToPDF,
+  exportPAYEToExcel,
+  exportVATToExcel,
+  exportPAYEToCSV,
+  exportVATToCSV,
+  type ExportFormat,
+} from "@/lib/export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ConfigCard } from "./_components/config-card";
 import { PAYECalculator } from "./_components/tax/paye-calculator";
 import { VATCalculator } from "./_components/vat/vat-calculator";
@@ -30,6 +45,8 @@ export default function Home() {
   const [year, setYear] = useState("2024");
   const [ssnitEnabled, setSsnitEnabled] = useState(true);
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
+  const [vatInputs, setVATInputs] = useState<{ mode: "exclusive" | "inclusive"; amount: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Auto-set year to 2026 when VAT is selected
   const handleCalculatorTypeChange = (value: string) => {
@@ -57,6 +74,89 @@ export default function Home() {
   const errorMessage = hasError && calculationResult 
     ? (calculationResult as { errorMessage: string }).errorMessage 
     : undefined;
+
+  // Check if values are entered for PAYE
+  const hasPAYEValues = useMemo(() => {
+    return monthlyBasicIncome.trim() !== "" && result !== null;
+  }, [monthlyBasicIncome, result]);
+
+  // Check if values are entered for VAT
+  const hasVATValues = useMemo(() => {
+    return vatInputs !== null && vatInputs.amount.trim() !== "" && vatResult !== null;
+  }, [vatInputs, vatResult]);
+
+  // Export handlers
+  const handleExportPAYE = async (format: ExportFormat) => {
+    if (!result || isExporting) return;
+    setIsExporting(true);
+    try {
+      // Use setTimeout to allow UI to update with spinner
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          const exportData = {
+            inputs: {
+              monthlyBasicIncome,
+              monthlyAllowances,
+              taxRelief,
+              year,
+              ssnitEnabled,
+            },
+            result,
+          };
+
+          switch (format) {
+            case "pdf":
+              exportPAYEToPDF(exportData);
+              break;
+            case "excel":
+              exportPAYEToExcel(exportData);
+              break;
+            case "csv":
+              exportPAYEToCSV(exportData);
+              break;
+          }
+          resolve();
+        }, 100);
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportVAT = async (format: ExportFormat) => {
+    if (!vatResult || !vatInputs || isExporting) return;
+    setIsExporting(true);
+    try {
+      // Use setTimeout to allow UI to update with spinner
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          const exportData = {
+            inputs: {
+              mode: vatInputs.mode,
+              amount: vatInputs.amount,
+              year,
+            },
+            result: vatResult,
+          };
+
+          switch (format) {
+            case "pdf":
+              exportVATToPDF(exportData);
+              break;
+            case "excel":
+              exportVATToExcel(exportData);
+              break;
+            case "csv":
+              exportVATToCSV(exportData);
+              break;
+          }
+          resolve();
+        }, 100);
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-background p-4 pt-8">
@@ -127,11 +227,15 @@ export default function Home() {
               ssnitEnabled={ssnitEnabled}
             />
           ) : (
-            <VATCalculator year={year} onResultChange={setVATResult} />
+            <VATCalculator 
+              year={year} 
+              onResultChange={setVATResult}
+              onInputsChange={setVATInputs}
+            />
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2">
+          <div className="flex flex-col lg:flex-row gap-2">
             <MobileConfigDialog
               open={showMobileConfig}
               onOpenChange={setShowMobileConfig}
@@ -146,10 +250,10 @@ export default function Home() {
             />
             <Button
               variant="outline"
-              className="hidden lg:flex flex-1"
+              className="hidden lg:flex flex-1 min-w-0"
               onClick={() => setShowConfig(!showConfig)}
             >
-              {showConfig ? "Hide Settings" : "Show Settings"}
+              Settings
             </Button>
             {calculatorType === "PAYE" && (
               <>
@@ -160,12 +264,109 @@ export default function Home() {
                   ssnitEnabled={ssnitEnabled}
                 />
                 <Button
-                  className="hidden lg:flex flex-1"
+                  className="hidden lg:flex flex-1 min-w-0"
                   onClick={() => setShowBreakdown(!showBreakdown)}
                 >
-                  {showBreakdown ? "Hide tax breakdown" : "Show tax breakdown"}
+                  Tax Breakdown
                 </Button>
+                <div
+                  className={`hidden lg:block transition-all duration-500 ease-in-out ${
+                    hasPAYEValues
+                      ? "opacity-100 translate-y-0 flex-1 min-w-0"
+                      : "opacity-0 -translate-y-2 w-0 overflow-hidden pointer-events-none"
+                  }`}
+                >
+                  {hasPAYEValues && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full px-2 text-xs sm:text-sm"
+                          disabled={isExporting || !result}
+                        >
+                          {isExporting ? (
+                            <span className="flex items-center justify-center gap-1.5">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                              <span className="truncate">Exporting...</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-center gap-1.5">
+                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">Export</span>
+                            </span>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleExportPAYE("pdf")}
+                          disabled={isExporting}
+                        >
+                          Export as PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleExportPAYE("excel")}
+                          disabled={isExporting}
+                        >
+                          Export as Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleExportPAYE("csv")}
+                          disabled={isExporting}
+                        >
+                          Export as CSV
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </>
+            )}
+            {/* Mobile Export Button for PAYE */}
+            {calculatorType === "PAYE" && hasPAYEValues && (
+              <div className="lg:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full px-2 text-xs sm:text-sm"
+                      disabled={isExporting || !result}
+                    >
+                      {isExporting ? (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                          <span className="truncate">Exporting...</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">Export</span>
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleExportPAYE("pdf")}
+                      disabled={isExporting}
+                    >
+                      Export as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportPAYE("excel")}
+                      disabled={isExporting}
+                    >
+                      Export as Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportPAYE("csv")}
+                      disabled={isExporting}
+                    >
+                      Export as CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
             {calculatorType === "VAT" && (
               <>
@@ -175,12 +376,109 @@ export default function Home() {
                   result={vatResult}
                 />
                 <Button
-                  className="hidden lg:flex flex-1"
+                  className="hidden lg:flex flex-1 min-w-0"
                   onClick={() => setShowBreakdown(!showBreakdown)}
                 >
-                  {showBreakdown ? "Hide VAT breakdown" : "Show VAT breakdown"}
+                  VAT Breakdown
                 </Button>
+                <div
+                  className={`hidden lg:block transition-all duration-500 ease-in-out ${
+                    hasVATValues
+                      ? "opacity-100 translate-y-0 flex-1 min-w-0"
+                      : "opacity-0 -translate-y-2 w-0 overflow-hidden pointer-events-none"
+                  }`}
+                >
+                  {hasVATValues && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full px-2 text-xs sm:text-sm"
+                          disabled={isExporting || !vatResult || !vatInputs}
+                        >
+                          {isExporting ? (
+                            <span className="flex items-center justify-center gap-1.5">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                              <span className="truncate">Exporting...</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-center gap-1.5">
+                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">Export</span>
+                            </span>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleExportVAT("pdf")}
+                          disabled={isExporting}
+                        >
+                          Export as PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleExportVAT("excel")}
+                          disabled={isExporting}
+                        >
+                          Export as Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleExportVAT("csv")}
+                          disabled={isExporting}
+                        >
+                          Export as CSV
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </>
+            )}
+            {/* Mobile Export Button for VAT */}
+            {calculatorType === "VAT" && hasVATValues && (
+              <div className="lg:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full px-2 text-xs sm:text-sm"
+                      disabled={isExporting || !vatResult || !vatInputs}
+                    >
+                      {isExporting ? (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                          <span className="truncate">Exporting...</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">Export</span>
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleExportVAT("pdf")}
+                      disabled={isExporting}
+                    >
+                      Export as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportVAT("excel")}
+                      disabled={isExporting}
+                    >
+                      Export as Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportVAT("csv")}
+                      disabled={isExporting}
+                    >
+                      Export as CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
 

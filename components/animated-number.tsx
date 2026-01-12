@@ -26,6 +26,7 @@ export function AnimatedNumber({
       }, duration / 2);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [value, duration, displayValue]);
 
   return (

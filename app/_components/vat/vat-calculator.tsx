@@ -17,9 +17,10 @@ import { formatCurrency, formatInputValue, parseInputValue } from "../utils";
 interface VATCalculatorProps {
   year: string;
   onResultChange?: (result: VATCalculationResult | null) => void;
+  onInputsChange?: (inputs: { mode: "exclusive" | "inclusive"; amount: string }) => void;
 }
 
-export function VATCalculator({ year, onResultChange }: VATCalculatorProps) {
+export function VATCalculator({ year: _year, onResultChange, onInputsChange }: VATCalculatorProps) {
   const [mode, setMode] = useState<"exclusive" | "inclusive">("exclusive");
   const [exclusiveAmount, setExclusiveAmount] = useState("");
   const [inclusiveAmount, setInclusiveAmount] = useState("");
@@ -51,6 +52,14 @@ export function VATCalculator({ year, onResultChange }: VATCalculatorProps) {
       }
     }
   }, [vatResult, exclusiveAmount, inclusiveAmount, onResultChange]);
+
+  // Notify parent of input changes
+  useEffect(() => {
+    if (onInputsChange) {
+      const amount = mode === "exclusive" ? exclusiveAmount : inclusiveAmount;
+      onInputsChange({ mode, amount });
+    }
+  }, [mode, exclusiveAmount, inclusiveAmount, onInputsChange]);
 
   const clearExclusive = () => {
     setExclusiveAmount("");
