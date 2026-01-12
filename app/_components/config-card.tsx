@@ -35,7 +35,7 @@ export function ConfigCard({
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">Config</CardTitle>
+        <CardTitle className="text-xl">Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">

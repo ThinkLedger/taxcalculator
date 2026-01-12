@@ -149,7 +149,7 @@ export default function Home() {
               className="hidden lg:flex flex-1"
               onClick={() => setShowConfig(!showConfig)}
             >
-              {showConfig ? "Hide Config" : "Show Config"}
+              {showConfig ? "Hide Settings" : "Show Settings"}
             </Button>
             {calculatorType === "PAYE" && (
               <>

@@ -40,12 +40,12 @@ export function MobileConfigDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" className="flex-1 lg:hidden">
-          Show Config
+          Show Settings
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Config</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
             Configure tax calculation settings
           </DialogDescription>
