@@ -51,7 +51,7 @@ export default function Home() {
   const [showDeductionsAllowances, setShowDeductionsAllowances] = useState(false);
   const [deductions, setDeductions] = useState<DeductionItem[]>([]);
   const [allowances, setAllowances] = useState<AllowanceItem[]>([]);
-  const [workingDays, setWorkingDays] = useState("");
+  const [workingDays, setWorkingDays] = useState("22");
   const [missedDays, setMissedDays] = useState("");
 
   // Auto-set year to 2026 when VAT is selected
@@ -69,23 +69,18 @@ export default function Home() {
     const parsedIncome = parseInputValue(monthlyBasicIncome);
     const parsedAllowances = parseInputValue(monthlyAllowances);
     const parsedRelief = parseInputValue(taxRelief);
-    
-    // Parse working days and missed days
-    const parsedWorkingDays = workingDays ? parseInt(workingDays, 10) : undefined;
-    const parsedMissedDays = missedDays ? parseInt(missedDays, 10) : undefined;
-    
     return calculate(
       parsedIncome,
       parsedAllowances,
       parsedRelief,
       ssnitEnabled,
       year,
-      allowances,
       deductions,
-      parsedWorkingDays,
-      parsedMissedDays
+      allowances,
+      workingDays,
+      missedDays
     );
-  }, [monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year, calculatorType, allowances, deductions, workingDays, missedDays]);
+  }, [monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year, calculatorType, deductions, allowances, workingDays, missedDays]);
 
   const hasError = calculationResult && "errorMessage" in calculationResult;
   const result: TaxCalculationResult | null = 
@@ -100,7 +95,6 @@ export default function Home() {
   const hasPAYEValues = useMemo(() => {
     return monthlyBasicIncome.trim() !== "" && result !== null;
   }, [monthlyBasicIncome, result]);
-
 
   // Auto-show deductions/allowances card when user starts entering values
   useEffect(() => {

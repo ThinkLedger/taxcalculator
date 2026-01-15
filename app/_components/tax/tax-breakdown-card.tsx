@@ -129,24 +129,20 @@ export function TaxBreakdownCard({ result, ssnitEnabled }: TaxBreakdownCardProps
                           GH¢ {formatCurrency(result.ssnitBreakdown.totalContribution)}
                         </td>
                       </tr>
-                      {result.ssnitBreakdown.tier1 && result.ssnitBreakdown.tier2 && (
-                        <>
-                          <tr className="border-t">
-                            <td className="py-2 px-2">Tier 1 (13.5/18.5)</td>
-                            <td className="text-center py-2 px-2">13.5%</td>
-                            <td className="text-right py-2 px-2">
-                              GH¢ {formatCurrency(result.ssnitBreakdown.tier1)}
-                            </td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-2 px-2">Tier 2 (Remaining)</td>
-                            <td className="text-center py-2 px-2">5%</td>
-                            <td className="text-right py-2 px-2">
-                              GH¢ {formatCurrency(result.ssnitBreakdown.tier2)}
-                            </td>
-                          </tr>
-                        </>
-                      )}
+                      <tr className="border-t">
+                        <td className="py-2 px-2">Tier 1 Payable (13.5/18.5)</td>
+                        <td className="text-center py-2 px-2">13.5%</td>
+                        <td className="text-right py-2 px-2">
+                          GH¢ {formatCurrency(result.ssnitBreakdown.tier1Payable)}
+                        </td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-2 px-2">Tier 2 Payable (Remaining)</td>
+                        <td className="text-center py-2 px-2">5%</td>
+                        <td className="text-right py-2 px-2">
+                          GH¢ {formatCurrency(result.ssnitBreakdown.tier2Payable)}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>

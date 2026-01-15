@@ -61,7 +61,7 @@ export function DeductionsAndAllowancesCard({
   const [allowanceDialogOpen, setAllowanceDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
   const [editingAllowance, setEditingAllowance] = useState<AllowanceItem | null>(null);
-  const [deductionForm, setDeductionForm] = useState({ label: "", value: "", taxable: false });
+  const [deductionForm, setDeductionForm] = useState({ label: "", value: "" });
   const [allowanceForm, setAllowanceForm] = useState({ label: "", value: "", taxable: false });
 
   const openDeductionDialog = (deduction?: DeductionItem) => {
@@ -70,11 +70,10 @@ export function DeductionsAndAllowancesCard({
       setDeductionForm({
         label: deduction.label,
         value: deduction.value,
-        taxable: deduction.taxable,
       });
     } else {
       setEditingDeduction(null);
-      setDeductionForm({ label: "", value: "", taxable: false });
+      setDeductionForm({ label: "", value: "" });
     }
     setDeductionDialogOpen(true);
   };
@@ -100,7 +99,7 @@ export function DeductionsAndAllowancesCard({
       onDeductionsChange(
         deductions.map((d) =>
           d.id === editingDeduction.id
-            ? { ...d, ...deductionForm }
+            ? { ...d, ...deductionForm, taxable: false }
             : d
         )
       );
@@ -109,12 +108,13 @@ export function DeductionsAndAllowancesCard({
       const newDeduction: DeductionItem = {
         id: `deduction-${Date.now()}`,
         ...deductionForm,
+        taxable: false,
       };
       onDeductionsChange([...deductions, newDeduction]);
     }
     setDeductionDialogOpen(false);
     setEditingDeduction(null);
-    setDeductionForm({ label: "", value: "", taxable: false });
+    setDeductionForm({ label: "", value: "" });
   };
 
   const saveAllowance = () => {
@@ -337,27 +337,30 @@ export function DeductionsAndAllowancesCard({
                     <Label htmlFor="working-days">Working Days</Label>
                     <Input
                       id="working-days"
-                      type="number"
+                      type="text"
                       inputMode="numeric"
                       value={workingDays}
-                      onChange={(e) => onWorkingDaysChange(e.target.value)}
+                      onChange={(e) => {
+                        const formatted = formatInputValue(e.target.value);
+                        onWorkingDaysChange(formatted);
+                      }}
                       placeholder="22"
-                      className="text-right text-lg"
-                      min="1"
-                      max="31"
+                      className="text-right"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="missed-days">Missed Days</Label>
                     <Input
                       id="missed-days"
-                      type="number"
+                      type="text"
                       inputMode="numeric"
                       value={missedDays}
-                      onChange={(e) => onMissedDaysChange(e.target.value)}
+                      onChange={(e) => {
+                        const formatted = formatInputValue(e.target.value);
+                        onMissedDaysChange(formatted);
+                      }}
                       placeholder="0"
-                      className="text-right text-lg"
-                      min="0"
+                      className="text-right"
                     />
                   </div>
                 </div>
@@ -414,16 +417,6 @@ export function DeductionsAndAllowancesCard({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="deduction-taxable">Taxable</Label>
-              <Switch
-                id="deduction-taxable"
-                checked={deductionForm.taxable}
-                onCheckedChange={(checked) =>
-                  setDeductionForm({ ...deductionForm, taxable: checked })
-                }
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button
@@ -431,7 +424,7 @@ export function DeductionsAndAllowancesCard({
               onClick={() => {
                 setDeductionDialogOpen(false);
                 setEditingDeduction(null);
-                setDeductionForm({ label: "", value: "", taxable: false });
+                setDeductionForm({ label: "", value: "" });
               }}
             >
               Cancel

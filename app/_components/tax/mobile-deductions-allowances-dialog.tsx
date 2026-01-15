@@ -17,10 +17,6 @@ interface MobileDeductionsAllowancesDialogProps {
   onDeductionsChange: (deductions: DeductionItem[]) => void;
   allowances: AllowanceItem[];
   onAllowancesChange: (allowances: AllowanceItem[]) => void;
-  workingDays: string;
-  onWorkingDaysChange: (value: string) => void;
-  missedDays: string;
-  onMissedDaysChange: (value: string) => void;
 }
 
 export function MobileDeductionsAllowancesDialog({
@@ -30,10 +26,6 @@ export function MobileDeductionsAllowancesDialog({
   onDeductionsChange,
   allowances,
   onAllowancesChange,
-  workingDays,
-  onWorkingDaysChange,
-  missedDays,
-  onMissedDaysChange,
 }: MobileDeductionsAllowancesDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,10 +44,6 @@ export function MobileDeductionsAllowancesDialog({
             onDeductionsChange={onDeductionsChange}
             allowances={allowances}
             onAllowancesChange={onAllowancesChange}
-            workingDays={workingDays}
-            onWorkingDaysChange={onWorkingDaysChange}
-            missedDays={missedDays}
-            onMissedDaysChange={onMissedDaysChange}
           />
         </div>
       </DialogContent>

@@ -14,8 +14,8 @@ export interface SSNITBreakdown {
   employeeRate: number;
   employerRate: number;
   baseAmount: string;
-  tier1: string;
-  tier2: string;
+  tier1Payable: string;
+  tier2Payable: string;
 }
 
 export interface TaxCalculationResult {
@@ -24,6 +24,9 @@ export interface TaxCalculationResult {
   netIncome: string;
   computationBreakdown: ComputationBreakdown[];
   ssnitBreakdown: SSNITBreakdown;
+  totalDeductions: string;
+  totalTaxableAllowances: string;
+  absenteeismDeduction: string;
 }
 
 export interface TaxCalculationError {
@@ -43,14 +46,14 @@ function isValidNumber(val: string | number): boolean {
   return isPositiveNumber(val);
 }
 
-export interface AllowanceItem {
+export interface DeductionItem {
   id: string;
   label: string;
   value: string;
   taxable: boolean;
 }
 
-export interface DeductionItem {
+export interface AllowanceItem {
   id: string;
   label: string;
   value: string;
@@ -63,10 +66,10 @@ interface ComputeTaxesParams {
   taxRelief: Decimal;
   taxRates: [number, number][];
   ssnitEnabled?: boolean;
-  taxableAllowances?: AllowanceItem[];
   deductions?: DeductionItem[];
-  workingDays?: number;
-  missedDays?: number;
+  allowanceItems?: AllowanceItem[];
+  workingDays?: string;
+  missedDays?: string;
 }
 
 function computeTaxes({
@@ -75,10 +78,10 @@ function computeTaxes({
   taxRelief,
   taxRates,
   ssnitEnabled = true,
-  taxableAllowances = [],
   deductions = [],
-  workingDays,
-  missedDays,
+  allowanceItems = [],
+  workingDays = "",
+  missedDays = "",
 }: ComputeTaxesParams): TaxCalculationResult {
   let totalTax = new Decimal(0);
   const employeeSsnitContribution = ssnitEnabled
@@ -89,38 +92,36 @@ function computeTaxes({
     : new Decimal(0);
   const totalSsnitContribution = employeeSsnitContribution.plus(employerSsnitContribution);
 
-  // Calculate SSNIT tiers
+  // Calculate SSNIT tier 1 and tier 2
   // Tier 1 = 13.5/18.5 * total SSNIT
-  const tier1 = totalSsnitContribution.times(13.5).dividedBy(18.5);
+  const tier1Payable = totalSsnitContribution.times(13.5).dividedBy(18.5);
   // Tier 2 = total SSNIT - tier 1
-  const tier2 = totalSsnitContribution.minus(tier1);
+  const tier2Payable = totalSsnitContribution.minus(tier1Payable);
 
-  // Calculate taxable and non-taxable allowances separately
-  const allowancesArray = Array.isArray(taxableAllowances) ? taxableAllowances : [];
-  
-  const taxableAllowancesTotal = allowancesArray
-    .filter((allowance) => allowance.taxable)
-    .reduce((sum, allowance) => {
-      const value = new Decimal(allowance.value.replace(/,/g, "") || "0");
-      return sum.plus(value);
-    }, new Decimal(0));
+  // Calculate total deductions (deductions are NOT taxable)
+  const totalDeductions = deductions.reduce((sum, d) => {
+    const valueStr = d.value.replace(/,/g, "");
+    const value = parseFloat(valueStr);
+    return sum.plus(isNaN(value) ? 0 : value);
+  }, new Decimal(0));
 
-  const nonTaxableAllowancesTotal = allowancesArray
-    .filter((allowance) => !allowance.taxable)
-    .reduce((sum, allowance) => {
-      const value = new Decimal(allowance.value.replace(/,/g, "") || "0");
-      return sum.plus(value);
-    }, new Decimal(0));
+  // Calculate taxable allowances (only those marked as taxable)
+  const totalTaxableAllowances = allowanceItems.reduce((sum, a) => {
+    if (!a.taxable) return sum;
+    const valueStr = a.value.replace(/,/g, "");
+    const value = parseFloat(valueStr);
+    return sum.plus(isNaN(value) ? 0 : value);
+  }, new Decimal(0));
 
-  // Taxable income calculation: basic income - SSNIT (5.5%) + taxable allowances
-  const taxableBase = grossIncome.minus(employeeSsnitContribution).plus(taxableAllowancesTotal);
+  // Add the old allowances input to taxable allowances for backward compatibility
+  const totalTaxableAllowancesWithOld = totalTaxableAllowances.plus(allowances);
 
   const totalTaxRelief = employeeSsnitContribution.plus(taxRelief);
 
-  // Add legacy allowances (from the old input field) - these are treated as taxable
-  let taxableRemaining = taxableBase
+  // Taxable income = basic income - tax relief + taxable allowances
+  let taxableRemaining = new Decimal(grossIncome)
     .minus(totalTaxRelief)
-    .plus(allowances);
+    .plus(totalTaxableAllowancesWithOld);
 
   const computationBreakdown: ComputationBreakdown[] = [];
 
@@ -147,32 +148,38 @@ function computeTaxes({
     }
   }
 
-  // Calculate net income (take home) before deductions
-  // Include: gross income + all allowances (taxable + non-taxable) - tax - SSNIT
-  let netIncome = grossIncome
-    .plus(allowances)
-    .plus(taxableAllowancesTotal)
-    .plus(nonTaxableAllowancesTotal)
-    .minus(totalTax)
-    .minus(employeeSsnitContribution);
-
-  // Calculate total deductions (all deductions are not taxable, so subtract from net income)
-  const totalDeductions = deductions.reduce((sum, deduction) => {
-    const value = new Decimal(deduction.value.replace(/,/g, "") || "0");
-    return sum.plus(value);
+  // Calculate total allowances (both taxable and non-taxable)
+  const totalAllowancesAmount = allowanceItems.reduce((sum, a) => {
+    const valueStr = a.value.replace(/,/g, "");
+    const value = parseFloat(valueStr);
+    return sum.plus(isNaN(value) ? 0 : value);
   }, new Decimal(0));
+  const totalAllowancesWithOld = totalAllowancesAmount.plus(allowances);
 
-  // Calculate absenteeism deduction if applicable
+  // Calculate absenteeism deduction
+  // Absenteeism = (net income before deductions / working days) * missed days
   let absenteeismDeduction = new Decimal(0);
-  if (workingDays && missedDays && missedDays > 0 && workingDays > 0) {
-    // Daily salary = net income / working days
-    const dailySalary = netIncome.dividedBy(workingDays);
-    // Absenteeism deduction = daily salary * missed days
-    absenteeismDeduction = dailySalary.times(missedDays);
+  if (workingDays && missedDays) {
+    const workingDaysNum = parseFloat(workingDays.replace(/,/g, ""));
+    const missedDaysNum = parseFloat(missedDays.replace(/,/g, ""));
+    if (!isNaN(workingDaysNum) && !isNaN(missedDaysNum) && workingDaysNum > 0 && missedDaysNum > 0) {
+      // Net income before deductions = gross + allowances - tax - SSNIT employee
+      const netBeforeDeductions = grossIncome
+        .plus(totalAllowancesWithOld)
+        .minus(totalTax)
+        .minus(employeeSsnitContribution);
+      const salaryPerDay = netBeforeDeductions.dividedBy(workingDaysNum);
+      absenteeismDeduction = salaryPerDay.times(missedDaysNum);
+    }
   }
 
-  // Final net income = net income - total deductions - absenteeism
-  netIncome = netIncome.minus(totalDeductions).minus(absenteeismDeduction);
+  // Net income = gross income + allowances - income tax - SSNIT employee - total deductions - absenteeism
+  const netIncome = grossIncome
+    .plus(totalAllowancesWithOld)
+    .minus(totalTax)
+    .minus(employeeSsnitContribution)
+    .minus(totalDeductions)
+    .minus(absenteeismDeduction);
 
   return {
     incomeTax: totalTax.toFixed(2),
@@ -186,9 +193,12 @@ function computeTaxes({
       employeeRate: SSNIT_EMPLOYEE_RATE,
       employerRate: SSNIT_EMPLOYER_RATE,
       baseAmount: grossIncome.toFixed(2),
-      tier1: tier1.toFixed(2),
-      tier2: tier2.toFixed(2),
+      tier1Payable: tier1Payable.toFixed(2),
+      tier2Payable: tier2Payable.toFixed(2),
     },
+    totalDeductions: totalDeductions.toFixed(2),
+    totalTaxableAllowances: totalTaxableAllowancesWithOld.toFixed(2),
+    absenteeismDeduction: absenteeismDeduction.toFixed(2),
   };
 }
 
@@ -198,10 +208,10 @@ export function calculate(
   taxReliefInput: string | number,
   ssnitEnabled: boolean = true,
   year: string = "2024",
-  taxableAllowances: AllowanceItem[] = [],
   deductions: DeductionItem[] = [],
-  workingDays?: number,
-  missedDays?: number
+  allowanceItems: AllowanceItem[] = [],
+  workingDays: string = "",
+  missedDays: string = ""
 ): TaxCalculationResponse {
   let gross = grossInput;
   let allowances = allowancesInput;
@@ -233,8 +243,8 @@ export function calculate(
     taxRelief: new Decimal(taxRelief),
     taxRates: taxRates.rates,
     ssnitEnabled,
-    taxableAllowances: taxableAllowances,
     deductions,
+    allowanceItems,
     workingDays,
     missedDays,
   });
