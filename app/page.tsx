@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Twitter, Facebook, Linkedin, Share2, Download, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,6 +30,7 @@ import { VATBreakdownCard } from "./_components/vat/vat-breakdown-card";
 import { MobileConfigDialog } from "./_components/mobile-config-dialog";
 import { MobileBreakdownDialog } from "./_components/tax/mobile-breakdown-dialog";
 import { MobileVATBreakdownDialog } from "./_components/vat/mobile-vat-breakdown-dialog";
+import { DeductionsAndAllowancesCard, type DeductionItem, type AllowanceItem } from "./_components/tax/deductions-allowances-card";
 
 export default function Home() {
   const [monthlyBasicIncome, setMonthlyBasicIncome] = useState("");
@@ -47,6 +48,11 @@ export default function Home() {
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
   const [vatInputs, setVATInputs] = useState<{ mode: "exclusive" | "inclusive"; amount: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showDeductionsAllowances, setShowDeductionsAllowances] = useState(false);
+  const [deductions, setDeductions] = useState<DeductionItem[]>([]);
+  const [allowances, setAllowances] = useState<AllowanceItem[]>([]);
+  const [workingDays, setWorkingDays] = useState("");
+  const [missedDays, setMissedDays] = useState("");
 
   // Auto-set year to 2026 when VAT is selected
   const handleCalculatorTypeChange = (value: string) => {
@@ -63,8 +69,23 @@ export default function Home() {
     const parsedIncome = parseInputValue(monthlyBasicIncome);
     const parsedAllowances = parseInputValue(monthlyAllowances);
     const parsedRelief = parseInputValue(taxRelief);
-    return calculate(parsedIncome, parsedAllowances, parsedRelief, ssnitEnabled, year);
-  }, [monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year, calculatorType]);
+    
+    // Parse working days and missed days
+    const parsedWorkingDays = workingDays ? parseInt(workingDays, 10) : undefined;
+    const parsedMissedDays = missedDays ? parseInt(missedDays, 10) : undefined;
+    
+    return calculate(
+      parsedIncome,
+      parsedAllowances,
+      parsedRelief,
+      ssnitEnabled,
+      year,
+      allowances,
+      deductions,
+      parsedWorkingDays,
+      parsedMissedDays
+    );
+  }, [monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year, calculatorType, allowances, deductions, workingDays, missedDays]);
 
   const hasError = calculationResult && "errorMessage" in calculationResult;
   const result: TaxCalculationResult | null = 
@@ -79,6 +100,14 @@ export default function Home() {
   const hasPAYEValues = useMemo(() => {
     return monthlyBasicIncome.trim() !== "" && result !== null;
   }, [monthlyBasicIncome, result]);
+
+
+  // Auto-show deductions/allowances card when user starts entering values
+  useEffect(() => {
+    if (calculatorType === "PAYE" && monthlyBasicIncome.trim() !== "") {
+      setShowDeductionsAllowances(true);
+    }
+  }, [monthlyBasicIncome, calculatorType]);
 
   // Check if values are entered for VAT
   const hasVATValues = useMemo(() => {
@@ -521,17 +550,17 @@ export default function Home() {
                 </a>
                 <a
                   href="https://www.facebook.com/sharer/sharer.php?u=https://taxcalculator.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
+            target="_blank"
+            rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-primary transition-colors"
                   aria-label="Share on Facebook"
                 >
                   <Facebook className="w-5 h-5" />
-                </a>
-                <a
+          </a>
+          <a
                   href="https://www.linkedin.com/sharing/share-offsite/?url=https://taxcalculator.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
+            target="_blank"
+            rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-primary transition-colors"
                   aria-label="Share on LinkedIn"
                 >
@@ -556,6 +585,29 @@ export default function Home() {
             </div>
           </footer>
         </main>
+
+        {/* Desktop Deductions & Allowances Card */}
+        {calculatorType === "PAYE" && (
+          <div
+            className={`hidden lg:block absolute top-16 w-full max-w-sm transition-all duration-500 ease-in-out ${
+              showDeductionsAllowances
+                ? "opacity-100 translate-x-0"
+                : "opacity-0 -translate-x-8 pointer-events-none"
+            }`}
+            style={{ right: "calc(50% + 13rem)" }}
+          >
+            <DeductionsAndAllowancesCard
+              deductions={deductions}
+              onDeductionsChange={setDeductions}
+              allowances={allowances}
+              onAllowancesChange={setAllowances}
+              workingDays={workingDays}
+              onWorkingDaysChange={setWorkingDays}
+              missedDays={missedDays}
+              onMissedDaysChange={setMissedDays}
+            />
+          </div>
+        )}
 
         {/* Desktop Breakdown Card */}
         {calculatorType === "PAYE" && (
@@ -582,7 +634,7 @@ export default function Home() {
             <VATBreakdownCard result={vatResult} />
           </div>
         )}
-      </div>
+        </div>
     </div>
   );
 }
