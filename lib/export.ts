@@ -4,6 +4,12 @@ import currencySymbol from "currency-symbol";
 import * as XLSX from "xlsx";
 import type { TaxCalculationResult } from "./calculator";
 import type { VATCalculationResult } from "./vat-calculator";
+import type {
+  AccountingRatiosResult,
+  BalanceSheetResult,
+  FinanceRatiosResult,
+  IncomeStatementResult,
+} from "./oracle-api";
 
 // Parse formatted input back to number string (remove commas)
 function parseInputValue(value: string): string {
@@ -28,7 +34,7 @@ function getCurrencySymbol(): string {
     // Format as "GH" + symbol for better readability
     // The package returns cent symbol (¢) for Ghana, which is acceptable
     return `GH${decoded}`;
-  } catch (error) {
+  } catch {
     return "GH¢"; // Fallback to GH¢ if anything fails
   }
 }
@@ -808,3 +814,291 @@ export function exportVATToCSV(data: VATExportData): void {
   document.body.removeChild(link);
 }
 
+interface IncomeStatementExportData {
+  year: string;
+  quarter: string;
+  result: IncomeStatementResult;
+}
+
+interface BalanceSheetExportData {
+  year: string;
+  quarter: string;
+  result: BalanceSheetResult;
+}
+
+interface AccountingRatiosExportData {
+  year: string;
+  quarter: string;
+  result: AccountingRatiosResult;
+}
+
+interface FinanceRatiosExportData {
+  year: string;
+  quarter: string;
+  result: FinanceRatiosResult;
+}
+
+function downloadCsv(fileName: string, rows: string[][]): void {
+  const csvContent = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", fileName);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function formatMaybeNumber(value: number | null, suffix = ""): string {
+  if (value === null || Number.isNaN(value)) return "N/A";
+  return `${value.toFixed(2)}${suffix}`;
+}
+
+export function exportIncomeStatementToPDF(data: IncomeStatementExportData): void {
+  const doc = new jsPDF();
+  const { result, year, quarter } = data;
+  doc.setFontSize(18);
+  doc.text("Income Statement Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Period: Q${quarter} ${year}`, 14, 28);
+  doc.text(`Generated: ${new Date().toLocaleDateString("en-GB")}`, 14, 34);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 42,
+    head: [["Item", "Amount"]],
+    body: [
+      ["Total Revenue", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.totalRevenue))}`],
+      ["Cost of Goods Sold", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.costOfGoodsSold))}`],
+      ["Operating Expenses", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.operatingExpenses))}`],
+      ["Depreciation Charge", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.depreciationCharge))}`],
+      ["Interest On Loans", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.interestOnLoans))}`],
+      ["Corporate Tax", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.corporateTax))}`],
+      ["Dividend Payments", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.dividendPayments))}`],
+      ["Gross Profit", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.grossProfit))}`],
+      ["EBIT", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.ebit))}`],
+      ["Net Profit", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.netProfit))}`],
+      ["Reserves", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.reserves))}`],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [59, 130, 246] },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`Income_Statement_Q${quarter}_${year}.pdf`);
+}
+
+export function exportIncomeStatementToCSV(data: IncomeStatementExportData): void {
+  const { result, year, quarter } = data;
+  const rows: string[][] = [
+    ["Income Statement Report"],
+    [`Period: Q${quarter} ${year}`],
+    [],
+    ["Item", "Amount"],
+    ["Total Revenue", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.totalRevenue))}`],
+    ["Cost of Goods Sold", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.costOfGoodsSold))}`],
+    ["Operating Expenses", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.operatingExpenses))}`],
+    ["Depreciation Charge", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.depreciationCharge))}`],
+    ["Interest On Loans", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.interestOnLoans))}`],
+    ["Corporate Tax", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.corporateTax))}`],
+    ["Dividend Payments", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.dividendPayments))}`],
+    ["Gross Profit", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.grossProfit))}`],
+    ["EBIT", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.ebit))}`],
+    ["Net Profit", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.netProfit))}`],
+    ["Reserves", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.statement.reserves))}`],
+  ];
+  downloadCsv(`Income_Statement_Q${quarter}_${year}.csv`, rows);
+}
+
+export function exportBalanceSheetToPDF(data: BalanceSheetExportData): void {
+  const doc = new jsPDF();
+  const { result, year, quarter } = data;
+  doc.setFontSize(18);
+  doc.text("Balance Sheet Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Period: Q${quarter} ${year}`, 14, 28);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [["Item", "Amount"]],
+    body: [
+      ["Non-current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.nonCurrentAssets))}`],
+      ["Inventory", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.inventory))}`],
+      ["Accounts Receivable", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.accountsReceivable))}`],
+      ["Cash", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.cash))}`],
+      ["Other Current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.otherCurrentAssets))}`],
+      ["Current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.currentAssets))}`],
+      ["Total Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalAssets))}`],
+      ["Current Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.currentLiabilities))}`],
+      ["Total Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalLiabilities))}`],
+      ["Shareholders Equity", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.shareholdersEquity))}`],
+      ["Equity + Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalEquityLiabilityEarnings))}`],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [59, 130, 246] },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`Balance_Sheet_Q${quarter}_${year}.pdf`);
+}
+
+export function exportBalanceSheetToCSV(data: BalanceSheetExportData): void {
+  const { result, year, quarter } = data;
+  const rows: string[][] = [
+    ["Balance Sheet Report"],
+    [`Period: Q${quarter} ${year}`],
+    [],
+    ["Item", "Amount"],
+    ["Non-current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.nonCurrentAssets))}`],
+    ["Inventory", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.inventory))}`],
+    ["Accounts Receivable", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.accountsReceivable))}`],
+    ["Cash", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.cash))}`],
+    ["Other Current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.otherCurrentAssets))}`],
+    ["Current Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.currentAssets))}`],
+    ["Total Assets", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalAssets))}`],
+    ["Current Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.currentLiabilities))}`],
+    ["Total Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalLiabilities))}`],
+    ["Shareholders Equity", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.shareholdersEquity))}`],
+    ["Equity + Liabilities", `${CURRENCY_SYMBOL} ${formatCurrency(String(result.sheet.totalEquityLiabilityEarnings))}`],
+  ];
+  downloadCsv(`Balance_Sheet_Q${quarter}_${year}.csv`, rows);
+}
+
+export function exportAccountingRatiosToPDF(data: AccountingRatiosExportData): void {
+  const doc = new jsPDF();
+  const { result, year, quarter } = data;
+  doc.setFontSize(18);
+  doc.text("Accounting Ratios Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Period: Q${quarter} ${year}`, 14, 28);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [["Category", "Metric", "Value"]],
+    body: [
+      ["Liquidity", "Current Ratio", formatMaybeNumber(result.liquidity.currentRatio)],
+      ["Liquidity", "Quick Ratio", formatMaybeNumber(result.liquidity.quickRatio)],
+      ["Liquidity", "Cash Ratio", formatMaybeNumber(result.liquidity.cashRatio)],
+      ["Profitability", "Gross Margin", formatMaybeNumber(result.profitability.grossProfitMarginPct, "%")],
+      ["Profitability", "Operating Margin", formatMaybeNumber(result.profitability.operatingProfitMarginPct, "%")],
+      ["Profitability", "Net Margin", formatMaybeNumber(result.profitability.netProfitMarginPct, "%")],
+      ["Profitability", "ROA", formatMaybeNumber(result.profitability.returnOnAssetsPct, "%")],
+      ["Profitability", "ROE", formatMaybeNumber(result.profitability.returnOnEquityPct, "%")],
+      ["Leverage", "Debt to Equity", formatMaybeNumber(result.leverage.debtToEquity)],
+      ["Leverage", "Debt Ratio", formatMaybeNumber(result.leverage.debtRatio)],
+      ["Leverage", "Interest Coverage", formatMaybeNumber(result.leverage.interestCoverageRatio)],
+      ["Efficiency", "Inventory Turnover", formatMaybeNumber(result.efficiency.inventoryTurnover)],
+      ["Efficiency", "Receivables Turnover", formatMaybeNumber(result.efficiency.receivablesTurnover)],
+      ["Efficiency", "Asset Turnover", formatMaybeNumber(result.efficiency.assetTurnover)],
+      ["Efficiency", "Payables Turnover", formatMaybeNumber(result.efficiency.payablesTurnover)],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [59, 130, 246] },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`Accounting_Ratios_Q${quarter}_${year}.pdf`);
+}
+
+export function exportAccountingRatiosToCSV(data: AccountingRatiosExportData): void {
+  const { result, year, quarter } = data;
+  const rows: string[][] = [
+    ["Accounting Ratios Report"],
+    [`Period: Q${quarter} ${year}`],
+    [],
+    ["Category", "Metric", "Value"],
+    ["Liquidity", "Current Ratio", formatMaybeNumber(result.liquidity.currentRatio)],
+    ["Liquidity", "Quick Ratio", formatMaybeNumber(result.liquidity.quickRatio)],
+    ["Liquidity", "Cash Ratio", formatMaybeNumber(result.liquidity.cashRatio)],
+    ["Profitability", "Gross Margin", formatMaybeNumber(result.profitability.grossProfitMarginPct, "%")],
+    ["Profitability", "Operating Margin", formatMaybeNumber(result.profitability.operatingProfitMarginPct, "%")],
+    ["Profitability", "Net Margin", formatMaybeNumber(result.profitability.netProfitMarginPct, "%")],
+    ["Profitability", "ROA", formatMaybeNumber(result.profitability.returnOnAssetsPct, "%")],
+    ["Profitability", "ROE", formatMaybeNumber(result.profitability.returnOnEquityPct, "%")],
+    ["Leverage", "Debt to Equity", formatMaybeNumber(result.leverage.debtToEquity)],
+    ["Leverage", "Debt Ratio", formatMaybeNumber(result.leverage.debtRatio)],
+    ["Leverage", "Interest Coverage", formatMaybeNumber(result.leverage.interestCoverageRatio)],
+    ["Efficiency", "Inventory Turnover", formatMaybeNumber(result.efficiency.inventoryTurnover)],
+    ["Efficiency", "Receivables Turnover", formatMaybeNumber(result.efficiency.receivablesTurnover)],
+    ["Efficiency", "Asset Turnover", formatMaybeNumber(result.efficiency.assetTurnover)],
+    ["Efficiency", "Payables Turnover", formatMaybeNumber(result.efficiency.payablesTurnover)],
+  ];
+  if (result.notes.length > 0) {
+    rows.push([]);
+    rows.push(["Notes"]);
+    result.notes.forEach((note) => rows.push([note]));
+  }
+  downloadCsv(`Accounting_Ratios_Q${quarter}_${year}.csv`, rows);
+}
+
+export function exportFinanceRatiosToPDF(data: FinanceRatiosExportData): void {
+  const doc = new jsPDF();
+  const { result, year, quarter } = data;
+  doc.setFontSize(18);
+  doc.text("Finance Ratios Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Period: Q${quarter} ${year}`, 14, 28);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [["Category", "Metric", "Value"]],
+    body: [
+      ["Liquidity", "Current Ratio", formatMaybeNumber(result.liquidity.currentRatio)],
+      ["Liquidity", "Quick Ratio", formatMaybeNumber(result.liquidity.quickRatio)],
+      ["Liquidity", "Cash Ratio", formatMaybeNumber(result.liquidity.cashRatio)],
+      ["Leverage", "Debt to Equity", formatMaybeNumber(result.leverage.debtToEquity)],
+      ["Leverage", "Debt Ratio", formatMaybeNumber(result.leverage.debtRatio)],
+      ["Leverage", "Interest Coverage", formatMaybeNumber(result.leverage.interestCoverageRatio)],
+      ["Valuation", "P/E", formatMaybeNumber(result.valuation.priceToEarnings)],
+      ["Valuation", "PEG", formatMaybeNumber(result.valuation.priceEarningsToGrowth)],
+      ["Valuation", "P/B", formatMaybeNumber(result.valuation.priceToBook)],
+      ["Valuation", "P/S", formatMaybeNumber(result.valuation.priceToSales)],
+      ["Valuation", "EPS", formatMaybeNumber(result.valuation.earningsPerShare)],
+      ["Valuation", "Dividend Yield", formatMaybeNumber(result.valuation.dividendYieldPct, "%")],
+      ["Valuation", "Dividend Payout", formatMaybeNumber(result.valuation.dividendPayoutRatioPct, "%")],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [59, 130, 246] },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`Finance_Ratios_Q${quarter}_${year}.pdf`);
+}
+
+export function exportFinanceRatiosToCSV(data: FinanceRatiosExportData): void {
+  const { result, year, quarter } = data;
+  const rows: string[][] = [
+    ["Finance Ratios Report"],
+    [`Period: Q${quarter} ${year}`],
+    [],
+    ["Category", "Metric", "Value"],
+    ["Liquidity", "Current Ratio", formatMaybeNumber(result.liquidity.currentRatio)],
+    ["Liquidity", "Quick Ratio", formatMaybeNumber(result.liquidity.quickRatio)],
+    ["Liquidity", "Cash Ratio", formatMaybeNumber(result.liquidity.cashRatio)],
+    ["Leverage", "Debt to Equity", formatMaybeNumber(result.leverage.debtToEquity)],
+    ["Leverage", "Debt Ratio", formatMaybeNumber(result.leverage.debtRatio)],
+    ["Leverage", "Interest Coverage", formatMaybeNumber(result.leverage.interestCoverageRatio)],
+    ["Valuation", "P/E", formatMaybeNumber(result.valuation.priceToEarnings)],
+    ["Valuation", "PEG", formatMaybeNumber(result.valuation.priceEarningsToGrowth)],
+    ["Valuation", "P/B", formatMaybeNumber(result.valuation.priceToBook)],
+    ["Valuation", "P/S", formatMaybeNumber(result.valuation.priceToSales)],
+    ["Valuation", "EPS", formatMaybeNumber(result.valuation.earningsPerShare)],
+    ["Valuation", "Dividend Yield", formatMaybeNumber(result.valuation.dividendYieldPct, "%")],
+    ["Valuation", "Dividend Payout", formatMaybeNumber(result.valuation.dividendPayoutRatioPct, "%")],
+  ];
+  if (result.notes.length > 0) {
+    rows.push([]);
+    rows.push(["Notes"]);
+    result.notes.forEach((note) => rows.push([note]));
+  }
+  downloadCsv(`Finance_Ratios_Q${quarter}_${year}.csv`, rows);
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Twitter, Facebook, Linkedin, Share2, Download, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,6 +14,7 @@ import {
   computeWithholding,
   type CITCalculationResult,
   type CSTCalculationResult,
+  type FinanceRatiosResult,
   type RentTaxCalculationResult,
   type WithholdingCalculationResult,
 } from "@/lib/oracle-api";
@@ -25,6 +26,8 @@ import {
   exportVATToExcel,
   exportPAYEToCSV,
   exportVATToCSV,
+  exportFinanceRatiosToCSV,
+  exportFinanceRatiosToPDF,
   type ExportFormat,
 } from "@/lib/export";
 import {
@@ -33,10 +36,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ConfigCard } from "./_components/config-card";
 import { PAYECalculator } from "./_components/tax/paye-calculator";
 import { CITCalculator } from "./_components/tax/cit-calculator";
 import { CSTCalculator } from "./_components/tax/cst-calculator";
+import { AccountingRatiosCalculator } from "./_components/tax/accounting-ratios-calculator";
+import { BalanceSheetCalculator } from "./_components/tax/balance-sheet-calculator";
+import { CashFlowCalculator } from "./_components/tax/cash-flow-calculator";
+import { FinanceRatiosCalculator } from "./_components/tax/finance-ratios-calculator";
+import { IncomeStatementCalculator } from "./_components/tax/income-statement-calculator";
 import { RentTaxCalculator } from "./_components/tax/rent-tax-calculator";
 import { WithholdingCalculator, WHT_CATEGORIES } from "./_components/tax/withholding-calculator";
 import { VATCalculator } from "./_components/vat/vat-calculator";
@@ -65,6 +81,7 @@ export default function Home() {
   const [calculatorType, setCalculatorType] = useState("PAYE");
   const [country, setCountry] = useState("Ghana");
   const [year, setYear] = useState("2024");
+  const [statementQuarter, setStatementQuarter] = useState("1");
   const [ssnitEnabled, setSsnitEnabled] = useState(true);
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
   const [vatInputs, setVATInputs] = useState<{ mode: "exclusive" | "inclusive"; amount: string } | null>(null);
@@ -84,6 +101,19 @@ export default function Home() {
   const [cstResult, setCstResult] = useState<CSTCalculationResult | null>(null);
   const [cstErrorMessage, setCstErrorMessage] = useState<string | undefined>(undefined);
   const [isCstLoading, setIsCstLoading] = useState(false);
+  const [financeRatiosResult, setFinanceRatiosResult] = useState<FinanceRatiosResult | null>(null);
+  const [isCalculatorTransitionVisible, setIsCalculatorTransitionVisible] = useState(true);
+  const isFirstCalculatorRender = useRef(true);
+  const panelWidthClass =
+    calculatorType === "CASH_FLOW"
+      ? "w-full lg:w-[24rem] lg:max-w-[calc(100vw-2rem)]"
+      : calculatorType === "FINANCE_RATIOS"
+      ? "w-full lg:w-[32rem] lg:max-w-[calc(100vw-2rem)]"
+      : calculatorType === "INCOME_STATEMENT" ||
+        calculatorType === "BALANCE_SHEET" ||
+        calculatorType === "ACCOUNTING_RATIOS"
+      ? "w-full lg:w-[36rem] lg:max-w-[calc(100vw-2rem)]"
+      : "w-full";
 
   // Auto-set year to 2026 when VAT is selected
   const handleCalculatorTypeChange = (value: string) => {
@@ -93,6 +123,14 @@ export default function Home() {
       setYear("2026");
     } else if (value === "CIT" || value === "WHT" || value === "RENT" || value === "CST") {
       setYear("2024");
+    } else if (
+      value === "INCOME_STATEMENT" ||
+      value === "BALANCE_SHEET" ||
+      value === "CASH_FLOW" ||
+      value === "ACCOUNTING_RATIOS" ||
+      value === "FINANCE_RATIOS"
+    ) {
+      setYear("2026");
     } else if (value === "PAYE" && year === "2026") {
       setYear("2024");
     }
@@ -102,6 +140,20 @@ export default function Home() {
     setWhtCounterpartyType(value);
     setWhtIncomeCategory(WHT_CATEGORIES[value][0].value);
   };
+
+  useEffect(() => {
+    if (isFirstCalculatorRender.current) {
+      isFirstCalculatorRender.current = false;
+      return;
+    }
+
+    setIsCalculatorTransitionVisible(false);
+    const timer = window.setTimeout(() => {
+      setIsCalculatorTransitionVisible(true);
+    }, 140);
+
+    return () => window.clearTimeout(timer);
+  }, [calculatorType]);
 
   useEffect(() => {
     if (calculatorType !== "PAYE") return;
@@ -465,108 +517,159 @@ export default function Home() {
             onCountryChange={setCountry}
             year={year}
             onYearChange={setYear}
+            quarter={statementQuarter}
+            onQuarterChange={setStatementQuarter}
             ssnitEnabled={ssnitEnabled}
             onSsnitChange={setSsnitEnabled}
           />
         </div>
 
         <main className="w-full max-w-sm mx-auto space-y-4">
-          {calculatorType === "VAT" ? (
-            <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
-              <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
-                ⚠️ Using 2026 VAT rates!
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
-              <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
-                ⚠️ Using {year} tax rates!
-              </p>
-            </div>
-          )}
+          <div className={`transition-[width,max-width] duration-500 ease-in-out ${panelWidthClass}`}>
+            {calculatorType === "VAT" ? (
+              <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
+                <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Using 2026 VAT rates!
+                </p>
+              </div>
+            ) : calculatorType === "INCOME_STATEMENT" ||
+              calculatorType === "BALANCE_SHEET" ||
+              calculatorType === "CASH_FLOW" ||
+              calculatorType === "ACCOUNTING_RATIOS" ||
+              calculatorType === "FINANCE_RATIOS" ? (
+              <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
+                <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Using {year} financial period!
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
+                <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Using {year} tax rates!
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Calculator Component */}
-          {calculatorType === "PAYE" ? (
-            <PAYECalculator
-              monthlyBasicIncome={monthlyBasicIncome}
-              onMonthlyBasicIncomeChange={setMonthlyBasicIncome}
-              monthlyAllowances={monthlyAllowances}
-              onMonthlyAllowancesChange={setMonthlyAllowances}
-              taxRelief={taxRelief}
-              onTaxReliefChange={setTaxRelief}
-              result={result}
-              hasError={!!hasError}
-              errorMessage={errorMessage}
-              ssnitEnabled={ssnitEnabled}
-              isLoading={isPayeLoading}
-            />
-          ) : calculatorType === "CIT" ? (
-            <CITCalculator
-              taxableIncome={citTaxableIncome}
-              onTaxableIncomeChange={setCitTaxableIncome}
-              result={citResult}
-              isLoading={isCitLoading}
-              errorMessage={citErrorMessage}
-            />
-          ) : calculatorType === "WHT" ? (
-            <WithholdingCalculator
-              paymentAmount={whtPaymentAmount}
-              onPaymentAmountChange={setWhtPaymentAmount}
-              counterpartyType={whtCounterpartyType}
-              onCounterpartyTypeChange={handleWhtCounterpartyTypeChange}
-              incomeCategory={whtIncomeCategory}
-              onIncomeCategoryChange={setWhtIncomeCategory}
-              result={whtResult}
-              isLoading={isWhtLoading}
-              errorMessage={whtErrorMessage}
-            />
-          ) : calculatorType === "RENT" ? (
-            <RentTaxCalculator
-              rentAmount={rentAmount}
-              onRentAmountChange={setRentAmount}
-              propertyType={rentPropertyType}
-              onPropertyTypeChange={setRentPropertyType}
-              result={rentResult}
-              isLoading={isRentLoading}
-              errorMessage={rentErrorMessage}
-            />
-          ) : calculatorType === "CST" ? (
-            <CSTCalculator
-              serviceCharge={cstServiceCharge}
-              onServiceChargeChange={setCstServiceCharge}
-              result={cstResult}
-              isLoading={isCstLoading}
-              errorMessage={cstErrorMessage}
-            />
-          ) : (
-            <VATCalculator 
-              year={year} 
-              onResultChange={setVATResult}
-              onInputsChange={setVATInputs}
-            />
-          )}
+          <div
+            className={`transition-[width,max-width,opacity,transform] duration-500 ease-in-out ${panelWidthClass} ${
+              isCalculatorTransitionVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+            }`}
+          >
+            {calculatorType === "PAYE" ? (
+              <PAYECalculator
+                monthlyBasicIncome={monthlyBasicIncome}
+                onMonthlyBasicIncomeChange={setMonthlyBasicIncome}
+                monthlyAllowances={monthlyAllowances}
+                onMonthlyAllowancesChange={setMonthlyAllowances}
+                taxRelief={taxRelief}
+                onTaxReliefChange={setTaxRelief}
+                result={result}
+                hasError={!!hasError}
+                errorMessage={errorMessage}
+                ssnitEnabled={ssnitEnabled}
+                isLoading={isPayeLoading}
+              />
+            ) : calculatorType === "CIT" ? (
+              <CITCalculator
+                taxableIncome={citTaxableIncome}
+                onTaxableIncomeChange={setCitTaxableIncome}
+                result={citResult}
+                isLoading={isCitLoading}
+                errorMessage={citErrorMessage}
+              />
+            ) : calculatorType === "WHT" ? (
+              <WithholdingCalculator
+                paymentAmount={whtPaymentAmount}
+                onPaymentAmountChange={setWhtPaymentAmount}
+                counterpartyType={whtCounterpartyType}
+                onCounterpartyTypeChange={handleWhtCounterpartyTypeChange}
+                incomeCategory={whtIncomeCategory}
+                onIncomeCategoryChange={setWhtIncomeCategory}
+                result={whtResult}
+                isLoading={isWhtLoading}
+                errorMessage={whtErrorMessage}
+              />
+            ) : calculatorType === "RENT" ? (
+              <RentTaxCalculator
+                rentAmount={rentAmount}
+                onRentAmountChange={setRentAmount}
+                propertyType={rentPropertyType}
+                onPropertyTypeChange={setRentPropertyType}
+                result={rentResult}
+                isLoading={isRentLoading}
+                errorMessage={rentErrorMessage}
+              />
+            ) : calculatorType === "CST" ? (
+              <CSTCalculator
+                serviceCharge={cstServiceCharge}
+                onServiceChargeChange={setCstServiceCharge}
+                result={cstResult}
+                isLoading={isCstLoading}
+                errorMessage={cstErrorMessage}
+              />
+            ) : calculatorType === "INCOME_STATEMENT" ? (
+              <IncomeStatementCalculator year={year} quarter={statementQuarter} />
+            ) : calculatorType === "BALANCE_SHEET" ? (
+              <BalanceSheetCalculator year={year} quarter={statementQuarter} />
+            ) : calculatorType === "CASH_FLOW" ? (
+              <CashFlowCalculator year={year} quarter={statementQuarter} />
+            ) : calculatorType === "ACCOUNTING_RATIOS" ? (
+              <AccountingRatiosCalculator
+                year={year}
+                quarter={statementQuarter}
+                onCalculatorTypeChange={handleCalculatorTypeChange}
+              />
+            ) : calculatorType === "FINANCE_RATIOS" ? (
+              <FinanceRatiosCalculator
+                year={year}
+                quarter={statementQuarter}
+                onResultChange={setFinanceRatiosResult}
+              />
+            ) : (
+              <VATCalculator 
+                year={year} 
+                onResultChange={setVATResult}
+                onInputsChange={setVATInputs}
+              />
+            )}
+          </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col lg:flex-row gap-2">
-            <MobileConfigDialog
-              open={showMobileConfig}
-              onOpenChange={setShowMobileConfig}
-              calculatorType={calculatorType}
-              onCalculatorTypeChange={handleCalculatorTypeChange}
+          <div className={`transition-[width,max-width] duration-500 ease-in-out ${panelWidthClass}`}>
+            {/* Action Buttons */}
+            <div
+              className={`flex flex-col gap-2 ${
+                calculatorType === "FINANCE_RATIOS"
+                  ? "lg:flex-row lg:justify-center"
+                  : "lg:flex-row"
+              }`}
+            >
+              <MobileConfigDialog
+                open={showMobileConfig}
+                onOpenChange={setShowMobileConfig}
+                calculatorType={calculatorType}
+                onCalculatorTypeChange={handleCalculatorTypeChange}
               country={country}
               onCountryChange={setCountry}
               year={year}
               onYearChange={setYear}
+              quarter={statementQuarter}
+              onQuarterChange={setStatementQuarter}
               ssnitEnabled={ssnitEnabled}
               onSsnitChange={setSsnitEnabled}
             />
-            <Button
-              variant="outline"
-              className="hidden lg:flex flex-1 min-w-0"
-              onClick={() => setShowConfig(!showConfig)}
-            >
-              Settings
-            </Button>
+              <Button
+                variant="outline"
+                className={
+                  calculatorType === "FINANCE_RATIOS"
+                    ? "hidden lg:flex lg:w-40 lg:flex-none"
+                    : "hidden lg:flex flex-1 min-w-0"
+                }
+                onClick={() => setShowConfig(!showConfig)}
+              >
+                Settings
+              </Button>
             {calculatorType === "PAYE" && (
               <>
                 <MobileBreakdownDialog
@@ -792,38 +895,166 @@ export default function Home() {
                 </DropdownMenu>
               </div>
             )}
-          </div>
+              {calculatorType === "FINANCE_RATIOS" && (
+                <Dialog open={showBreakdown} onOpenChange={setShowBreakdown}>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="hidden lg:flex lg:w-40 lg:flex-none"
+                      disabled={!financeRatiosResult}
+                    >
+                      Finance Results
+                    </Button>
+                  </DialogTrigger>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="lg:hidden"
+                      disabled={!financeRatiosResult}
+                    >
+                      Finance Results
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Finance Ratios</DialogTitle>
+                      <DialogDescription>
+                        {financeRatiosResult ? financeRatiosResult.period : "No results available"}
+                      </DialogDescription>
+                    </DialogHeader>
+                    {financeRatiosResult && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              exportFinanceRatiosToPDF({
+                                year,
+                                quarter: statementQuarter,
+                                result: financeRatiosResult,
+                              })
+                            }
+                          >
+                            Export PDF
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              exportFinanceRatiosToCSV({
+                                year,
+                                quarter: statementQuarter,
+                                result: financeRatiosResult,
+                              })
+                            }
+                          >
+                            Export CSV
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="rounded-md border p-3 space-y-1 text-sm">
+                          <p className="font-semibold">Liquidity</p>
+                        <p>Current Ratio: {financeRatiosResult.liquidity.currentRatio?.toFixed(2) ?? "N/A"}</p>
+                        <p>Quick Ratio: {financeRatiosResult.liquidity.quickRatio?.toFixed(2) ?? "N/A"}</p>
+                        <p>Cash Ratio: {financeRatiosResult.liquidity.cashRatio?.toFixed(2) ?? "N/A"}</p>
+                      </div>
+                      <div className="rounded-md border p-3 space-y-1 text-sm">
+                        <p className="font-semibold">Leverage</p>
+                        <p>Debt to Equity: {financeRatiosResult.leverage.debtToEquity?.toFixed(2) ?? "N/A"}</p>
+                        <p>Debt Ratio: {financeRatiosResult.leverage.debtRatio?.toFixed(2) ?? "N/A"}</p>
+                        <p>Interest Coverage: {financeRatiosResult.leverage.interestCoverageRatio?.toFixed(2) ?? "N/A"}</p>
+                      </div>
+                      <div className="rounded-md border p-3 space-y-1 text-sm">
+                        <p className="font-semibold">Profitability</p>
+                        <p>Gross Margin: {financeRatiosResult.profitability.grossProfitMarginPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>Operating Margin: {financeRatiosResult.profitability.operatingProfitMarginPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>Net Margin: {financeRatiosResult.profitability.netProfitMarginPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>ROA: {financeRatiosResult.profitability.returnOnAssetsPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>ROE: {financeRatiosResult.profitability.returnOnEquityPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>ROIC: {financeRatiosResult.profitability.returnOnInvestedCapitalPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>Equity Ratio: {financeRatiosResult.profitability.equityRatio?.toFixed(2) ?? "N/A"}%</p>
+                      </div>
+                      <div className="rounded-md border p-3 space-y-1 text-sm">
+                        <p className="font-semibold">Valuation</p>
+                        <p>P/E: {financeRatiosResult.valuation.priceToEarnings?.toFixed(2) ?? "N/A"}</p>
+                        <p>PEG: {financeRatiosResult.valuation.priceEarningsToGrowth?.toFixed(2) ?? "N/A"}</p>
+                        <p>P/B: {financeRatiosResult.valuation.priceToBook?.toFixed(2) ?? "N/A"}</p>
+                        <p>P/S: {financeRatiosResult.valuation.priceToSales?.toFixed(2) ?? "N/A"}</p>
+                        <p>EPS: {financeRatiosResult.valuation.earningsPerShare?.toFixed(2) ?? "N/A"}</p>
+                        <p>Dividend Yield: {financeRatiosResult.valuation.dividendYieldPct?.toFixed(2) ?? "N/A"}%</p>
+                        <p>Dividend Payout: {financeRatiosResult.valuation.dividendPayoutRatioPct?.toFixed(2) ?? "N/A"}%</p>
+                      </div>
+                        {financeRatiosResult.notes.length > 0 && (
+                          <div className="md:col-span-2 rounded-md border border-yellow-300/60 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950/20">
+                          <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">Notes</p>
+                          {financeRatiosResult.notes.map((note) => (
+                            <p key={note} className="text-xs text-yellow-800 dark:text-yellow-200">
+                              - {note}
+                            </p>
+                          ))}
+                          </div>
+                        )}
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
 
-          {calculatorType === "PAYE" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: February 1st, 2024
-            </p>
-          )}
-          {calculatorType === "VAT" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: 1st January 2026
-            </p>
-          )}
-          {calculatorType === "CIT" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: January 1st, 2024
-            </p>
-          )}
-          {calculatorType === "WHT" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: January 1st, 2024
-            </p>
-          )}
-          {calculatorType === "RENT" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: January 1st, 2024
-            </p>
-          )}
-          {calculatorType === "CST" && (
-            <p className="text-center text-xs text-muted-foreground">
-              Last updated: September 15th, 2020
-            </p>
-          )}
+            {calculatorType === "PAYE" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: February 1st, 2024
+              </p>
+            )}
+            {calculatorType === "VAT" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: 1st January 2026
+              </p>
+            )}
+            {calculatorType === "CIT" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: January 1st, 2024
+              </p>
+            )}
+            {calculatorType === "WHT" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: January 1st, 2024
+              </p>
+            )}
+            {calculatorType === "RENT" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: January 1st, 2024
+              </p>
+            )}
+            {calculatorType === "CST" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: September 15th, 2020
+              </p>
+            )}
+            {calculatorType === "INCOME_STATEMENT" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: March 7th, 2026
+              </p>
+            )}
+            {calculatorType === "BALANCE_SHEET" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: March 7th, 2026
+              </p>
+            )}
+            {calculatorType === "CASH_FLOW" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: March 7th, 2026
+              </p>
+            )}
+            {calculatorType === "ACCOUNTING_RATIOS" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: March 7th, 2026
+              </p>
+            )}
+            {calculatorType === "FINANCE_RATIOS" && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Last updated: March 7th, 2026
+              </p>
+            )}
+          </div>
 
           {/* Footer */}
           <footer className="pt-8 pb-4 space-y-3 text-center">

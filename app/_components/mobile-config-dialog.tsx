@@ -20,6 +20,8 @@ interface MobileConfigDialogProps {
   onCountryChange: (value: string) => void;
   year: string;
   onYearChange: (value: string) => void;
+  quarter: string;
+  onQuarterChange: (value: string) => void;
   ssnitEnabled: boolean;
   onSsnitChange: (checked: boolean) => void;
 }
@@ -33,6 +35,8 @@ export function MobileConfigDialog({
   onCountryChange,
   year,
   onYearChange,
+  quarter,
+  onQuarterChange,
   ssnitEnabled,
   onSsnitChange,
 }: MobileConfigDialogProps) {
@@ -58,6 +62,8 @@ export function MobileConfigDialog({
             onCountryChange={onCountryChange}
             year={year}
             onYearChange={onYearChange}
+            quarter={quarter}
+            onQuarterChange={onQuarterChange}
             ssnitEnabled={ssnitEnabled}
             onSsnitChange={onSsnitChange}
           />
@@ -66,4 +72,3 @@ export function MobileConfigDialog({
     </Dialog>
   );
 }
-

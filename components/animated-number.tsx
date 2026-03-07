@@ -19,12 +19,18 @@ export function AnimatedNumber({
 
   useEffect(() => {
     if (displayValue !== value) {
-      setIsAnimating(true);
-      const timer = setTimeout(() => {
+      let endTimer: ReturnType<typeof setTimeout> | undefined;
+      const startTimer = setTimeout(() => {
+        setIsAnimating(true);
         setDisplayValue(value);
-        setTimeout(() => setIsAnimating(false), 50);
+        endTimer = setTimeout(() => setIsAnimating(false), 50);
       }, duration / 2);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(startTimer);
+        if (endTimer) {
+          clearTimeout(endTimer);
+        }
+      };
     }
     return undefined;
   }, [value, duration, displayValue]);
@@ -41,4 +47,3 @@ export function AnimatedNumber({
     </span>
   );
 }
-

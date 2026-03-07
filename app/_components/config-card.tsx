@@ -18,6 +18,8 @@ interface ConfigCardProps {
   onCountryChange: (value: string) => void;
   year: string;
   onYearChange: (value: string) => void;
+  quarter: string;
+  onQuarterChange: (value: string) => void;
   ssnitEnabled: boolean;
   onSsnitChange: (checked: boolean) => void;
 }
@@ -29,6 +31,8 @@ export function ConfigCard({
   onCountryChange,
   year,
   onYearChange,
+  quarter,
+  onQuarterChange,
   ssnitEnabled,
   onSsnitChange,
 }: ConfigCardProps) {
@@ -51,6 +55,11 @@ export function ConfigCard({
               <SelectItem value="WHT">Withholding Tax</SelectItem>
               <SelectItem value="RENT">Rent Tax</SelectItem>
               <SelectItem value="CST">CST</SelectItem>
+              <SelectItem value="INCOME_STATEMENT">Income Statement</SelectItem>
+              <SelectItem value="BALANCE_SHEET">Balance Sheet</SelectItem>
+              <SelectItem value="CASH_FLOW">Cash Flow Statement</SelectItem>
+              <SelectItem value="ACCOUNTING_RATIOS">Accounting Ratios</SelectItem>
+              <SelectItem value="FINANCE_RATIOS">Finance Ratios</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -75,6 +84,12 @@ export function ConfigCard({
               <SelectContent>
                 {calculatorType === "VAT" ? (
                   <SelectItem value="2026">2026</SelectItem>
+                ) : calculatorType === "INCOME_STATEMENT" || calculatorType === "BALANCE_SHEET" || calculatorType === "CASH_FLOW" || calculatorType === "ACCOUNTING_RATIOS" || calculatorType === "FINANCE_RATIOS" ? (
+                  <>
+                    <SelectItem value="2026">2026</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                  </>
                 ) : calculatorType === "CIT" || calculatorType === "WHT" || calculatorType === "RENT" || calculatorType === "CST" ? (
                   <SelectItem value="2024">2024</SelectItem>
                 ) : (
@@ -88,6 +103,22 @@ export function ConfigCard({
             </Select>
           </div>
         </div>
+        {(calculatorType === "INCOME_STATEMENT" || calculatorType === "BALANCE_SHEET" || calculatorType === "CASH_FLOW" || calculatorType === "ACCOUNTING_RATIOS" || calculatorType === "FINANCE_RATIOS") && (
+          <div className="space-y-2">
+            <Label htmlFor="quarter">Quarter</Label>
+            <Select value={quarter} onValueChange={onQuarterChange}>
+              <SelectTrigger id="quarter" className="w-full">
+                <SelectValue placeholder="Select quarter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Q1</SelectItem>
+                <SelectItem value="2">Q2</SelectItem>
+                <SelectItem value="3">Q3</SelectItem>
+                <SelectItem value="4">Q4</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {calculatorType === "PAYE" && (
           <div className="flex items-center justify-between space-x-2">
             <Label htmlFor="ssnit" className="flex-1">
