@@ -49,7 +49,17 @@ yarn install
 pnpm install
 ```
 
-3. Run the development server:
+3. Configure Finance Oracle proxy access:
+```bash
+cp .env.example .env.local
+```
+
+Set these values in `.env.local`:
+- `NEXT_PUBLIC_FINANCE_ORACLE_PROXY_URL`
+
+Use a deployed proxy URL (for example a Cloudflare Worker). Do not expose Oracle API keys in frontend env vars.
+
+4. Run the development server:
 ```bash
 bun dev
 # or
@@ -60,7 +70,7 @@ yarn dev
 pnpm dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 

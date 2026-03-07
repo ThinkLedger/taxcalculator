@@ -1,11 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Twitter, Facebook, Linkedin, Share2, Download, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { calculate, type TaxCalculationResult } from "@/lib/calculator";
+import type { TaxCalculationResult } from "@/lib/calculator";
 import type { VATCalculationResult } from "@/lib/vat-calculator";
+import {
+  computeCIT,
+  computeCST,
+  computePAYE,
+  computeRentTax,
+  computeWithholding,
+  type CITCalculationResult,
+  type CSTCalculationResult,
+  type RentTaxCalculationResult,
+  type WithholdingCalculationResult,
+} from "@/lib/oracle-api";
 import { parseInputValue } from "./_components/utils";
 import {
   exportPAYEToPDF,
@@ -24,6 +35,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfigCard } from "./_components/config-card";
 import { PAYECalculator } from "./_components/tax/paye-calculator";
+import { CITCalculator } from "./_components/tax/cit-calculator";
+import { CSTCalculator } from "./_components/tax/cst-calculator";
+import { RentTaxCalculator } from "./_components/tax/rent-tax-calculator";
+import { WithholdingCalculator, WHT_CATEGORIES } from "./_components/tax/withholding-calculator";
 import { VATCalculator } from "./_components/vat/vat-calculator";
 import { TaxBreakdownCard } from "./_components/tax/tax-breakdown-card";
 import { VATBreakdownCard } from "./_components/vat/vat-breakdown-card";
@@ -35,6 +50,13 @@ export default function Home() {
   const [monthlyBasicIncome, setMonthlyBasicIncome] = useState("");
   const [monthlyAllowances, setMonthlyAllowances] = useState("");
   const [taxRelief, setTaxRelief] = useState("");
+  const [citTaxableIncome, setCitTaxableIncome] = useState("");
+  const [whtPaymentAmount, setWhtPaymentAmount] = useState("");
+  const [whtCounterpartyType, setWhtCounterpartyType] = useState<"resident" | "non_resident">("resident");
+  const [whtIncomeCategory, setWhtIncomeCategory] = useState<string>(WHT_CATEGORIES.resident[0].value);
+  const [rentAmount, setRentAmount] = useState("");
+  const [rentPropertyType, setRentPropertyType] = useState<"residential" | "commercial">("residential");
+  const [cstServiceCharge, setCstServiceCharge] = useState("");
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showMobileConfig, setShowMobileConfig] = useState(false);
@@ -47,33 +69,284 @@ export default function Home() {
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
   const [vatInputs, setVATInputs] = useState<{ mode: "exclusive" | "inclusive"; amount: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [payeResult, setPayeResult] = useState<TaxCalculationResult | null>(null);
+  const [payeErrorMessage, setPayeErrorMessage] = useState<string | undefined>(undefined);
+  const [isPayeLoading, setIsPayeLoading] = useState(false);
+  const [citResult, setCitResult] = useState<CITCalculationResult | null>(null);
+  const [citErrorMessage, setCitErrorMessage] = useState<string | undefined>(undefined);
+  const [isCitLoading, setIsCitLoading] = useState(false);
+  const [whtResult, setWhtResult] = useState<WithholdingCalculationResult | null>(null);
+  const [whtErrorMessage, setWhtErrorMessage] = useState<string | undefined>(undefined);
+  const [isWhtLoading, setIsWhtLoading] = useState(false);
+  const [rentResult, setRentResult] = useState<RentTaxCalculationResult | null>(null);
+  const [rentErrorMessage, setRentErrorMessage] = useState<string | undefined>(undefined);
+  const [isRentLoading, setIsRentLoading] = useState(false);
+  const [cstResult, setCstResult] = useState<CSTCalculationResult | null>(null);
+  const [cstErrorMessage, setCstErrorMessage] = useState<string | undefined>(undefined);
+  const [isCstLoading, setIsCstLoading] = useState(false);
 
   // Auto-set year to 2026 when VAT is selected
   const handleCalculatorTypeChange = (value: string) => {
     setCalculatorType(value);
+    setShowBreakdown(false);
     if (value === "VAT") {
       setYear("2026");
+    } else if (value === "CIT" || value === "WHT" || value === "RENT" || value === "CST") {
+      setYear("2024");
     } else if (value === "PAYE" && year === "2026") {
       setYear("2024");
     }
   };
 
-  const calculationResult = useMemo(() => {
-    if (calculatorType !== "PAYE") return null;
-    const parsedIncome = parseInputValue(monthlyBasicIncome);
-    const parsedAllowances = parseInputValue(monthlyAllowances);
-    const parsedRelief = parseInputValue(taxRelief);
-    return calculate(parsedIncome, parsedAllowances, parsedRelief, ssnitEnabled, year);
-  }, [monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year, calculatorType]);
+  const handleWhtCounterpartyTypeChange = (value: "resident" | "non_resident") => {
+    setWhtCounterpartyType(value);
+    setWhtIncomeCategory(WHT_CATEGORIES[value][0].value);
+  };
 
-  const hasError = calculationResult && "errorMessage" in calculationResult;
-  const result: TaxCalculationResult | null = 
-    calculationResult && !hasError
-      ? (calculationResult as TaxCalculationResult)
-      : null;
-  const errorMessage = hasError && calculationResult 
-    ? (calculationResult as { errorMessage: string }).errorMessage 
-    : undefined;
+  useEffect(() => {
+    if (calculatorType !== "PAYE") return;
+
+    if (!monthlyBasicIncome.trim()) {
+      setPayeResult(null);
+      setPayeErrorMessage(undefined);
+      setIsPayeLoading(false);
+      return;
+    }
+
+    const basicSalary = Number(parseInputValue(monthlyBasicIncome));
+    const allowances = Number(parseInputValue(monthlyAllowances || "0"));
+    const relief = Number(parseInputValue(taxRelief || "0"));
+
+    if (![basicSalary, allowances, relief].every((value) => Number.isFinite(value) && value >= 0)) {
+      setPayeResult(null);
+      setPayeErrorMessage("Please input valid amounts");
+      setIsPayeLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsPayeLoading(true);
+    setPayeErrorMessage(undefined);
+
+    computePAYE({
+      year,
+      basicSalary,
+      allowances,
+      taxRelief: relief,
+      ssnitEnabled,
+    })
+      .then((apiResult) => {
+        if (!active) return;
+        setPayeResult(apiResult);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute PAYE from API";
+        setPayeResult(null);
+        setPayeErrorMessage(message);
+      })
+      .finally(() => {
+        if (active) {
+          setIsPayeLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [calculatorType, monthlyBasicIncome, monthlyAllowances, taxRelief, ssnitEnabled, year]);
+
+  useEffect(() => {
+    if (calculatorType !== "CIT") return;
+
+    if (!citTaxableIncome.trim()) {
+      setCitResult(null);
+      setCitErrorMessage(undefined);
+      setIsCitLoading(false);
+      return;
+    }
+
+    const taxableIncome = Number(parseInputValue(citTaxableIncome));
+    if (!Number.isFinite(taxableIncome) || taxableIncome < 0) {
+      setCitResult(null);
+      setCitErrorMessage("Please input a valid taxable income");
+      setIsCitLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsCitLoading(true);
+    setCitErrorMessage(undefined);
+
+    computeCIT({ year, taxableIncome })
+      .then((apiResult) => {
+        if (!active) return;
+        setCitResult(apiResult);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute CIT from API";
+        setCitResult(null);
+        setCitErrorMessage(message);
+      })
+      .finally(() => {
+        if (active) {
+          setIsCitLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [calculatorType, citTaxableIncome, year]);
+
+  useEffect(() => {
+    if (calculatorType !== "WHT") return;
+
+    if (!whtPaymentAmount.trim()) {
+      setWhtResult(null);
+      setWhtErrorMessage(undefined);
+      setIsWhtLoading(false);
+      return;
+    }
+
+    const paymentAmount = Number(parseInputValue(whtPaymentAmount));
+    if (!Number.isFinite(paymentAmount) || paymentAmount < 0) {
+      setWhtResult(null);
+      setWhtErrorMessage("Please input a valid payment amount");
+      setIsWhtLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsWhtLoading(true);
+    setWhtErrorMessage(undefined);
+
+    computeWithholding({
+      year,
+      paymentAmount,
+      counterpartyType: whtCounterpartyType,
+      incomeCategory: whtIncomeCategory,
+    })
+      .then((apiResult) => {
+        if (!active) return;
+        setWhtResult(apiResult);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute withholding tax from API";
+        setWhtResult(null);
+        setWhtErrorMessage(message);
+      })
+      .finally(() => {
+        if (active) {
+          setIsWhtLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [calculatorType, year, whtPaymentAmount, whtCounterpartyType, whtIncomeCategory]);
+
+  useEffect(() => {
+    if (calculatorType !== "RENT") return;
+
+    if (!rentAmount.trim()) {
+      setRentResult(null);
+      setRentErrorMessage(undefined);
+      setIsRentLoading(false);
+      return;
+    }
+
+    const parsedRentAmount = Number(parseInputValue(rentAmount));
+    if (!Number.isFinite(parsedRentAmount) || parsedRentAmount < 0) {
+      setRentResult(null);
+      setRentErrorMessage("Please input a valid rent amount");
+      setIsRentLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsRentLoading(true);
+    setRentErrorMessage(undefined);
+
+    computeRentTax({
+      year,
+      rentAmount: parsedRentAmount,
+      propertyType: rentPropertyType,
+    })
+      .then((apiResult) => {
+        if (!active) return;
+        setRentResult(apiResult);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute rent tax from API";
+        setRentResult(null);
+        setRentErrorMessage(message);
+      })
+      .finally(() => {
+        if (active) {
+          setIsRentLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [calculatorType, year, rentAmount, rentPropertyType]);
+
+  useEffect(() => {
+    if (calculatorType !== "CST") return;
+
+    if (!cstServiceCharge.trim()) {
+      setCstResult(null);
+      setCstErrorMessage(undefined);
+      setIsCstLoading(false);
+      return;
+    }
+
+    const parsedServiceCharge = Number(parseInputValue(cstServiceCharge));
+    if (!Number.isFinite(parsedServiceCharge) || parsedServiceCharge < 0) {
+      setCstResult(null);
+      setCstErrorMessage("Please input a valid service charge");
+      setIsCstLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsCstLoading(true);
+    setCstErrorMessage(undefined);
+
+    computeCST({
+      year,
+      serviceCharge: parsedServiceCharge,
+    })
+      .then((apiResult) => {
+        if (!active) return;
+        setCstResult(apiResult);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute CST from API";
+        setCstResult(null);
+        setCstErrorMessage(message);
+      })
+      .finally(() => {
+        if (active) {
+          setIsCstLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [calculatorType, year, cstServiceCharge]);
+
+  const hasError = !!payeErrorMessage;
+  const result = payeResult;
+  const errorMessage = payeErrorMessage;
 
   // Check if values are entered for PAYE
   const hasPAYEValues = useMemo(() => {
@@ -225,6 +498,45 @@ export default function Home() {
               hasError={!!hasError}
               errorMessage={errorMessage}
               ssnitEnabled={ssnitEnabled}
+              isLoading={isPayeLoading}
+            />
+          ) : calculatorType === "CIT" ? (
+            <CITCalculator
+              taxableIncome={citTaxableIncome}
+              onTaxableIncomeChange={setCitTaxableIncome}
+              result={citResult}
+              isLoading={isCitLoading}
+              errorMessage={citErrorMessage}
+            />
+          ) : calculatorType === "WHT" ? (
+            <WithholdingCalculator
+              paymentAmount={whtPaymentAmount}
+              onPaymentAmountChange={setWhtPaymentAmount}
+              counterpartyType={whtCounterpartyType}
+              onCounterpartyTypeChange={handleWhtCounterpartyTypeChange}
+              incomeCategory={whtIncomeCategory}
+              onIncomeCategoryChange={setWhtIncomeCategory}
+              result={whtResult}
+              isLoading={isWhtLoading}
+              errorMessage={whtErrorMessage}
+            />
+          ) : calculatorType === "RENT" ? (
+            <RentTaxCalculator
+              rentAmount={rentAmount}
+              onRentAmountChange={setRentAmount}
+              propertyType={rentPropertyType}
+              onPropertyTypeChange={setRentPropertyType}
+              result={rentResult}
+              isLoading={isRentLoading}
+              errorMessage={rentErrorMessage}
+            />
+          ) : calculatorType === "CST" ? (
+            <CSTCalculator
+              serviceCharge={cstServiceCharge}
+              onServiceChargeChange={setCstServiceCharge}
+              result={cstResult}
+              isLoading={isCstLoading}
+              errorMessage={cstErrorMessage}
             />
           ) : (
             <VATCalculator 
@@ -490,6 +802,26 @@ export default function Home() {
           {calculatorType === "VAT" && (
             <p className="text-center text-xs text-muted-foreground">
               Last updated: 1st January 2026
+            </p>
+          )}
+          {calculatorType === "CIT" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: January 1st, 2024
+            </p>
+          )}
+          {calculatorType === "WHT" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: January 1st, 2024
+            </p>
+          )}
+          {calculatorType === "RENT" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: January 1st, 2024
+            </p>
+          )}
+          {calculatorType === "CST" && (
+            <p className="text-center text-xs text-muted-foreground">
+              Last updated: September 15th, 2020
             </p>
           )}
 

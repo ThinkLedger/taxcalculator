@@ -46,7 +46,11 @@ export function ConfigCard({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="PAYE">PAYE (Income Tax)</SelectItem>
+              <SelectItem value="CIT">CIT (Corporate Tax)</SelectItem>
               <SelectItem value="VAT">VAT</SelectItem>
+              <SelectItem value="WHT">Withholding Tax</SelectItem>
+              <SelectItem value="RENT">Rent Tax</SelectItem>
+              <SelectItem value="CST">CST</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -71,6 +75,8 @@ export function ConfigCard({
               <SelectContent>
                 {calculatorType === "VAT" ? (
                   <SelectItem value="2026">2026</SelectItem>
+                ) : calculatorType === "CIT" || calculatorType === "WHT" || calculatorType === "RENT" || calculatorType === "CST" ? (
+                  <SelectItem value="2024">2024</SelectItem>
                 ) : (
                   <>
                     <SelectItem value="2024">2024</SelectItem>
@@ -98,4 +104,3 @@ export function ConfigCard({
     </Card>
   );
 }
-

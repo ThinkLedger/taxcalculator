@@ -18,6 +18,7 @@ interface PAYECalculatorProps {
   hasError: boolean;
   errorMessage?: string;
   ssnitEnabled: boolean;
+  isLoading?: boolean;
 }
 
 export function PAYECalculator({
@@ -31,7 +32,9 @@ export function PAYECalculator({
   hasError,
   errorMessage,
   ssnitEnabled,
+  isLoading = false,
 }: PAYECalculatorProps) {
+  const shimmerClass = "inline-block h-6 w-20 animate-pulse rounded bg-muted align-middle";
 
   return (
     <Card>
@@ -107,9 +110,13 @@ export function PAYECalculator({
                 <p className="text-sm text-muted-foreground">Net Income (take home)</p>
                 <p className="text-lg font-semibold">
                   GH¢{" "}
-                  <AnimatedNumber
-                    value={result ? formatCurrency(result.netIncome) : "0.00"}
-                  />
+                  {isLoading ? (
+                    <span className={shimmerClass} />
+                  ) : (
+                    <AnimatedNumber
+                      value={result ? formatCurrency(result.netIncome) : "0.00"}
+                    />
+                  )}
                 </p>
               </div>
               <div className="flex justify-between items-start">
@@ -117,18 +124,26 @@ export function PAYECalculator({
                   <p className="text-sm text-muted-foreground">Income Tax</p>
                   <p className="text-lg font-semibold">
                     GH¢{" "}
-                    <AnimatedNumber
-                      value={result ? formatCurrency(result.incomeTax) : "0.00"}
-                    />
+                    {isLoading ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber
+                        value={result ? formatCurrency(result.incomeTax) : "0.00"}
+                      />
+                    )}
                   </p>
                 </div>
                 <div className="space-y-1 text-right">
                   <p className="text-sm text-muted-foreground">SSNIT</p>
                   <p className="text-lg font-semibold">
                     GH¢{" "}
-                    <AnimatedNumber
-                      value={result && ssnitEnabled ? formatCurrency(result.ssnitBreakdown.totalContribution) : "0.00"}
-                    />
+                    {isLoading ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber
+                        value={result && ssnitEnabled ? formatCurrency(result.ssnitBreakdown.employeeContribution) : "0.00"}
+                      />
+                    )}
                   </p>
                 </div>
               </div>
@@ -139,4 +154,3 @@ export function PAYECalculator({
     </Card>
   );
 }
-

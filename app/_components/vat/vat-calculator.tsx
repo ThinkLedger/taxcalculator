@@ -7,11 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/animated-number";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  calculateVATExclusive,
-  calculateVATInclusive,
-  type VATCalculationResult,
-} from "@/lib/vat-calculator";
+import type { VATCalculationResult } from "@/lib/vat-calculator";
+import { computeVATExclusive, computeVATInclusive } from "@/lib/oracle-api";
 import { formatCurrency, formatInputValue, parseInputValue } from "../utils";
 
 interface VATCalculatorProps {
@@ -24,34 +21,81 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
   const [mode, setMode] = useState<"exclusive" | "inclusive">("exclusive");
   const [exclusiveAmount, setExclusiveAmount] = useState("");
   const [inclusiveAmount, setInclusiveAmount] = useState("");
+  const [vatResult, setVatResult] = useState<VATCalculationResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const exclusiveResult = useMemo(() => {
-    if (mode !== "exclusive" || !exclusiveAmount) return null;
-    const parsed = parseInputValue(exclusiveAmount);
-    return calculateVATExclusive(parsed);
-  }, [exclusiveAmount, mode]);
+  const activeAmount = mode === "exclusive" ? exclusiveAmount : inclusiveAmount;
+  const parsedActiveAmount = useMemo(() => Number(parseInputValue(activeAmount || "0")), [activeAmount]);
+  const shimmerClass = "inline-block h-5 w-20 animate-pulse rounded bg-muted align-middle";
+  const validationError = useMemo(() => {
+    if (!activeAmount.trim()) return null;
+    if (!Number.isFinite(parsedActiveAmount) || parsedActiveAmount < 0) {
+      return mode === "exclusive" ? "Please input a valid taxable amount" : "Please input a valid final cost amount";
+    }
+    return null;
+  }, [activeAmount, mode, parsedActiveAmount]);
 
-  const inclusiveResult = useMemo(() => {
-    if (mode !== "inclusive" || !inclusiveAmount) return null;
-    const parsed = parseInputValue(inclusiveAmount);
-    return calculateVATInclusive(parsed);
-  }, [inclusiveAmount, mode]);
+  const resetComputedState = () => {
+    setVatResult(null);
+    setErrorMessage(null);
+    setIsLoading(false);
+  };
 
-  const result = mode === "exclusive" ? exclusiveResult : inclusiveResult;
-  const hasError = result && "errorMessage" in result;
-  const vatResult: VATCalculationResult | null =
-    result && !hasError ? (result as VATCalculationResult) : null;
+  useEffect(() => {
+    if (!activeAmount.trim()) {
+      return;
+    }
+
+    if (validationError) {
+      return;
+    }
+
+    let active = true;
+    const run = async () => {
+      setErrorMessage(null);
+      setIsLoading(true);
+
+      try {
+        const result =
+          mode === "exclusive"
+            ? await computeVATExclusive({ year: _year, amount: parsedActiveAmount })
+            : await computeVATInclusive({ year: _year, amount: parsedActiveAmount });
+        if (!active) return;
+        setVatResult(result);
+      } catch (error: unknown) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Unable to compute VAT from API";
+        setVatResult(null);
+        setErrorMessage(message);
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [activeAmount, mode, parsedActiveAmount, _year, validationError]);
 
   // Notify parent of result changes
   useEffect(() => {
+    const computedError = validationError || errorMessage;
+    const effectiveResult = computedError ? null : vatResult;
     if (onResultChange) {
-      if (vatResult !== null) {
-        onResultChange(vatResult);
+      if (effectiveResult !== null) {
+        onResultChange(effectiveResult);
       } else if (!exclusiveAmount && !inclusiveAmount) {
+        onResultChange(null);
+      } else if (computedError) {
         onResultChange(null);
       }
     }
-  }, [vatResult, exclusiveAmount, inclusiveAmount, onResultChange]);
+  }, [vatResult, exclusiveAmount, inclusiveAmount, onResultChange, errorMessage, validationError]);
 
   // Notify parent of input changes
   useEffect(() => {
@@ -63,10 +107,12 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
 
   const clearExclusive = () => {
     setExclusiveAmount("");
+    resetComputedState();
   };
 
   const clearInclusive = () => {
     setInclusiveAmount("");
+    resetComputedState();
   };
 
   return (
@@ -78,7 +124,13 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Tabs value={mode} onValueChange={(value) => setMode(value as "exclusive" | "inclusive")}>
+        <Tabs
+          value={mode}
+          onValueChange={(value) => {
+            setMode(value as "exclusive" | "inclusive");
+            resetComputedState();
+          }}
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="exclusive" className="text-xs">Exclusive (before taxes)</TabsTrigger>
             <TabsTrigger value="inclusive" className="text-xs">Inclusive (final cost)</TabsTrigger>
@@ -99,6 +151,7 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
                   onChange={(e) => {
                     const formatted = formatInputValue(e.target.value);
                     setExclusiveAmount(formatted);
+                    if (!formatted.trim()) resetComputedState();
                   }}
                   placeholder="0"
                   className="pl-12 text-right text-lg"
@@ -136,6 +189,7 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
                   onChange={(e) => {
                     const formatted = formatInputValue(e.target.value);
                     setInclusiveAmount(formatted);
+                    if (!formatted.trim()) resetComputedState();
                   }}
                   placeholder="0"
                   className="pl-12 text-right text-lg"
@@ -160,26 +214,36 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
         </Tabs>
 
         {/* Results */}
-        {hasError ? (
+        {validationError || errorMessage ? (
           <div className="pt-4 border-t">
             <p className="text-sm text-destructive text-center">
-              {(result as { errorMessage: string }).errorMessage}
+              {validationError || errorMessage}
             </p>
           </div>
         ) : (
-          vatResult && (
+          (vatResult || isLoading) && (
             <div className="space-y-4 pt-4 border-t">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">TAXABLE VALUE:</p>
                   <p className="text-lg font-semibold">
-                    GH₵ <AnimatedNumber value={formatCurrency(vatResult.taxableValue)} />
+                    GH₵{" "}
+                    {isLoading || !vatResult ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber value={formatCurrency(vatResult.taxableValue)} />
+                    )}
                   </p>
                 </div>
                 <div className="space-y-1 text-right">
                   <p className="text-xs text-muted-foreground whitespace-nowrap">FINAL COST (INCL. TAXES):</p>
                   <p className="text-lg font-semibold">
-                    GH₵ <AnimatedNumber value={formatCurrency(vatResult.finalCost)} />
+                    GH₵{" "}
+                    {isLoading || !vatResult ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber value={formatCurrency(vatResult.finalCost)} />
+                    )}
                   </p>
                 </div>
               </div>
@@ -187,19 +251,34 @@ export function VATCalculator({ year: _year, onResultChange, onInputsChange }: V
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">NHIL (2.5%):</p>
                   <p className="text-base font-semibold">
-                    GH₵ <AnimatedNumber value={formatCurrency(vatResult.nhil)} />
+                    GH₵{" "}
+                    {isLoading || !vatResult ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber value={formatCurrency(vatResult.nhil)} />
+                    )}
                   </p>
                 </div>
                 <div className="space-y-1 text-center">
                   <p className="text-xs text-muted-foreground">GETFUND LEVY (2.5%):</p>
                   <p className="text-base font-semibold">
-                    GH₵ <AnimatedNumber value={formatCurrency(vatResult.getfund)} />
+                    GH₵{" "}
+                    {isLoading || !vatResult ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber value={formatCurrency(vatResult.getfund)} />
+                    )}
                   </p>
                 </div>
                 <div className="space-y-1 text-right">
                   <p className="text-xs text-muted-foreground">VAT (15%):</p>
                   <p className="text-base font-semibold">
-                    GH₵ <AnimatedNumber value={formatCurrency(vatResult.vat)} />
+                    GH₵{" "}
+                    {isLoading || !vatResult ? (
+                      <span className={shimmerClass} />
+                    ) : (
+                      <AnimatedNumber value={formatCurrency(vatResult.vat)} />
+                    )}
                   </p>
                 </div>
               </div>
