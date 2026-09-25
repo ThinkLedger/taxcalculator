@@ -321,10 +321,17 @@ function toMoney(value: number): string {
   return value.toFixed(2);
 }
 
+/**
+ * "2026" asks for the rates in force on 1 January; "2026-09" for those in force
+ * on 1 September (PAYE bands changed mid-2026).
+ */
 function toAsOfDate(year: string): string {
-  const parsedYear = Number(year);
+  const [yearPart, monthPart] = year.split("-");
+  const parsedYear = Number(yearPart);
+  const parsedMonth = Number(monthPart);
   const resolvedYear = Number.isFinite(parsedYear) && parsedYear > 0 ? parsedYear : new Date().getUTCFullYear();
-  return new Date(Date.UTC(resolvedYear, 0, 1)).toISOString();
+  const monthIndex = Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth - 1 : 0;
+  return new Date(Date.UTC(resolvedYear, monthIndex, 1)).toISOString();
 }
 
 async function compute({ domain, operation, year, payload }: OracleComputeParams): Promise<OracleComputeResponse> {

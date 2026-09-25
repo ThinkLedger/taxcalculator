@@ -1,6 +1,6 @@
 # Ghana Tax Calculator 🇬🇭
 
-A modern, responsive web application for calculating PAYE income tax and SSNIT deductions in Ghana. Calculate your monthly net income, income tax, and SSNIT contributions instantly with accurate tax rates effective from January 2024.
+A modern, responsive web application for calculating PAYE income tax and SSNIT deductions in Ghana. Calculate your monthly net income, income tax, and SSNIT contributions instantly with accurate tax rates effective from 1 September 2026.
 
 ## Features
 
@@ -89,15 +89,17 @@ pnpm dev
 
 ## Tax Rates
 
-The calculator uses tax rates effective from **January 1st, 2024**:
+PAYE is computed by the Finance Oracle using the GRA monthly bands for the selected period. From **1 September 2026** (Income Tax (Amendment) Act, 2026, Act 1178 — [GRA PAYE](https://gra.gov.gh/domestic-tax/tax-types/paye/)):
 
-- First GH¢ 490: 0%
-- Next GH¢ 110: 5%
-- Next GH¢ 130: 10%
-- Next GH¢ 3,166.67: 17.5%
+- First GH¢ 588: 0%
+- Next GH¢ 80: 5%
+- Next GH¢ 100: 10%
+- Next GH¢ 2,900: 17.5%
 - Next GH¢ 16,000: 25%
-- Next GH¢ 30,520: 30%
+- Next GH¢ 30,332: 30%
 - Above GH¢ 50,000: 35%
+
+2024, 2025 and January–August 2026 use the previous bands (0% on the first GH¢ 490, then 5%, 10%, 17.5%, 25%, 30% on GH¢ 110 / 130 / 3,166.67 / 16,000 / 30,520, and 35% above GH¢ 50,000).
 
 **SSNIT Rate**: 5.5%
 

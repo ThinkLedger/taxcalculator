@@ -61,6 +61,7 @@ import { VATBreakdownCard } from "./_components/vat/vat-breakdown-card";
 import { MobileConfigDialog } from "./_components/mobile-config-dialog";
 import { MobileBreakdownDialog } from "./_components/tax/mobile-breakdown-dialog";
 import { MobileVATBreakdownDialog } from "./_components/vat/mobile-vat-breakdown-dialog";
+import { isPayePeriod, LATEST_PAYE_PERIOD, payePeriodLabel } from "@/lib/rates";
 
 export default function Home() {
   const [monthlyBasicIncome, setMonthlyBasicIncome] = useState("");
@@ -80,7 +81,7 @@ export default function Home() {
   const [showMobileVATBreakdown, setShowMobileVATBreakdown] = useState(false);
   const [calculatorType, setCalculatorType] = useState("PAYE");
   const [country, setCountry] = useState("Ghana");
-  const [year, setYear] = useState("2024");
+  const [year, setYear] = useState<string>(LATEST_PAYE_PERIOD);
   const [statementQuarter, setStatementQuarter] = useState("1");
   const [ssnitEnabled, setSsnitEnabled] = useState(true);
   const [vatResult, setVATResult] = useState<VATCalculationResult | null>(null);
@@ -131,8 +132,8 @@ export default function Home() {
       value === "FINANCE_RATIOS"
     ) {
       setYear("2026");
-    } else if (value === "PAYE" && year === "2026") {
-      setYear("2024");
+    } else if (value === "PAYE" && !isPayePeriod(year)) {
+      setYear(LATEST_PAYE_PERIOD);
     }
   };
 
@@ -423,7 +424,7 @@ export default function Home() {
               monthlyBasicIncome,
               monthlyAllowances,
               taxRelief,
-              year,
+              year: payePeriodLabel(year),
               ssnitEnabled,
             },
             result,
@@ -545,7 +546,7 @@ export default function Home() {
             ) : (
               <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-center">
                 <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
-                  ⚠️ Using {year} tax rates!
+                  ⚠️ Using {calculatorType === "PAYE" ? payePeriodLabel(year) : year} tax rates!
                 </p>
               </div>
             )}
@@ -1001,7 +1002,7 @@ export default function Home() {
 
             {calculatorType === "PAYE" && (
               <p className="text-center text-xs text-muted-foreground mt-4">
-                Last updated: February 1st, 2024
+                Last updated: September 1st, 2026
               </p>
             )}
             {calculatorType === "VAT" && (

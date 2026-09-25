@@ -14,7 +14,49 @@ export interface TaxRates {
   rates: [number, number][];
 }
 
+// Monthly PAYE bands as [rate %, band width], keyed by PAYE period. These
+// mirror the Finance Oracle rule packs the calculator computes with: the 2024
+// bands (v1) until 31 August 2026, then GRA's 2026 bands (v3) from
+// 1 September 2026 under the Income Tax (Amendment) Act, 2026 (Act 1178).
+// Source: https://gra.gov.gh/domestic-tax/tax-types/paye/
 export const taxRatesByYear: Record<string, TaxRates> = {
+  "2026-09": {
+    effectiveFrom: "01/09/2026",
+    rates: [
+      [0, 588],
+      [5, 80],
+      [10, 100],
+      [17.5, 2900],
+      [25, 16000],
+      [30, 30332],
+      [35, Number.POSITIVE_INFINITY], // anything above GHC 50,000
+    ] as [number, number][],
+  },
+  "2026": {
+    // January to August 2026 still used the 2024 bands.
+    effectiveFrom: "01/01/2024",
+    rates: [
+      [0, 490],
+      [5, 110],
+      [10, 130],
+      [17.5, 3166.67],
+      [25, 16000],
+      [30, 30520],
+      [35, Number.POSITIVE_INFINITY], // anything above GHC 50,000
+    ] as [number, number][],
+  },
+  "2025": {
+    effectiveFrom: "01/01/2024",
+    rates: [
+      [0, 490],
+      [5, 110],
+      [10, 130],
+      [17.5, 3166.67],
+      [25, 16000],
+      [30, 30520],
+      [35, Number.POSITIVE_INFINITY], // anything above GHC 50,000
+    ] as [number, number][],
+  },
   "2024": {
     effectiveFrom: "01/01/2024",
     rates: [
@@ -52,11 +94,32 @@ export const taxRatesByYear: Record<string, TaxRates> = {
   },
 };
 
+/**
+ * PAYE periods the calculator offers, newest first. 2026 is split because the
+ * bands changed part-way through the year. A value is "YYYY" (rates as of
+ * 1 January) or "YYYY-MM" (rates as of the 1st of that month).
+ */
+export const PAYE_PERIODS = [
+  { value: "2026-09", label: "2026 (from 1 Sep)" },
+  { value: "2026", label: "2026 (Jan–Aug)" },
+  { value: "2025", label: "2025" },
+  { value: "2024", label: "2024" },
+] as const;
+export const LATEST_PAYE_PERIOD = PAYE_PERIODS[0].value;
+
+export function isPayePeriod(value: string): boolean {
+  return PAYE_PERIODS.some((period) => period.value === value);
+}
+
+export function payePeriodLabel(value: string): string {
+  return PAYE_PERIODS.find((period) => period.value === value)?.label ?? value;
+}
+
 // Legacy export for backward compatibility
-export const monthlyTaxRates = taxRatesByYear["2024"];
+export const monthlyTaxRates = taxRatesByYear[LATEST_PAYE_PERIOD];
 
 export function getTaxRatesForYear(year: string): TaxRates {
-  return taxRatesByYear[year] || taxRatesByYear["2024"];
+  return taxRatesByYear[year] || taxRatesByYear[LATEST_PAYE_PERIOD];
 }
 
 // Effective until 01/01/2024

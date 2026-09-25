@@ -122,7 +122,7 @@ export function calculate(
   allowancesInput: string | number,
   taxReliefInput: string | number,
   ssnitEnabled: boolean = true,
-  year: string = "2024"
+  year: string = "2026-09"
 ): TaxCalculationResponse {
   let gross = grossInput;
   let allowances = allowancesInput;
