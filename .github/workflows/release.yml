@@ -1,0 +1,74 @@
+name: Release
+
+# Publishes a GitHub Release for every push to main (normally the merged
+# staging → main release PR). The version continues from the latest vX.Y.Z tag:
+# a "feat" commit bumps the minor version, "BREAKING CHANGE" or "!:" the major,
+# anything else the patch. Notes are generated from the merged PRs and commits.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: version
+        run: |
+          set -euo pipefail
+          last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          if [ -z "$last" ]; then
+            last="v0.0.0"
+            range="HEAD"
+          else
+            range="$last..HEAD"
+          fi
+
+          if [ -z "$(git log --format=%H "$range")" ]; then
+            echo "Nothing new since $last; skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          messages=$(git log --format='%s%n%b' "$range")
+          IFS=. read -r major minor patch <<< "${last#v}"
+          if grep -qE '(^[a-z]+(\([^)]*\))?!:)|BREAKING CHANGE' <<< "$messages"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qE '^feat(\([^)]*\))?:' <<< "$messages"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+
+          echo "tag=v$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+          echo "previous=$last" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        if: steps.version.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          previous="${{ steps.version.outputs.previous }}"
+          args=(--target "$GITHUB_SHA" --title "$tag" --generate-notes)
+          if [ "$previous" != "v0.0.0" ]; then
+            args+=(--notes-start-tag "$previous")
+          fi
+          gh release create "$tag" "${args[@]}"
