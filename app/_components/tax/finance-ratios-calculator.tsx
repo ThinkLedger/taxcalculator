@@ -85,9 +85,10 @@ interface FinanceRatiosCalculatorProps {
   year: string;
   quarter: string;
   onResultChange?: (result: FinanceRatiosResult | null) => void;
+  onCalculatorTypeChange?: (value: string) => void;
 }
 
-export function FinanceRatiosCalculator({ year, quarter, onResultChange }: FinanceRatiosCalculatorProps) {
+export function FinanceRatiosCalculator({ year, quarter, onResultChange, onCalculatorTypeChange }: FinanceRatiosCalculatorProps) {
   const [values, setValues] = useState<Record<FinanceFieldKey, string>>({
     marketPricePerShare: "",
     sharesOutstanding: "",
@@ -234,7 +235,7 @@ export function FinanceRatiosCalculator({ year, quarter, onResultChange }: Finan
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Finance Ratios 🇬🇭</CardTitle>
         <CardDescription>
-          Enter valuation inputs and compute finance ratios for {`Q${quarter} ${year}`} from your stored financial statements.
+          Enter valuation inputs and compute finance ratios for {`Q${quarter} ${year}`} from the income statement and balance sheet you entered for that quarter.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -283,6 +284,21 @@ export function FinanceRatiosCalculator({ year, quarter, onResultChange }: Finan
         </Button>
 
         {errorMessage && <p className="text-sm text-destructive text-center">{errorMessage}</p>}
+        {errorMessage && /statement missing|sheet missing/i.test(errorMessage) && onCalculatorTypeChange && (
+          <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-3 dark:border-amber-800 dark:bg-amber-950/20">
+            <p className="text-xs text-amber-900 dark:text-amber-100 text-center">
+              Add this quarter&apos;s statements first, then generate ratios. They stay in this browser only.
+            </p>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button variant="outline" onClick={() => onCalculatorTypeChange("INCOME_STATEMENT")} className="w-full">
+                Go To Income Statement
+              </Button>
+              <Button variant="outline" onClick={() => onCalculatorTypeChange("BALANCE_SHEET")} className="w-full">
+                Go To Balance Sheet
+              </Button>
+            </div>
+          </div>
+        )}
 
         {result && !errorMessage && (
           <p className="text-xs text-muted-foreground text-center">

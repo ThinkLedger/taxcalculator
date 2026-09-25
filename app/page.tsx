@@ -631,6 +631,7 @@ export default function Home() {
                 year={year}
                 quarter={statementQuarter}
                 onResultChange={setFinanceRatiosResult}
+                onCalculatorTypeChange={handleCalculatorTypeChange}
               />
             ) : (
               <VATCalculator 
