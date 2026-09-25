@@ -1,3 +1,9 @@
+import {
+  computeAccountingRatios,
+  computeBalanceSheet,
+  computeFinanceRatios,
+  computeIncomeStatement,
+} from "./financials";
 import { SSNIT_EMPLOYER_RATE } from "./rates";
 import type { TaxCalculationResult, ComputationBreakdown } from "./calculator";
 import type { VATCalculationResult } from "./vat-calculator";
@@ -379,80 +385,6 @@ async function compute({ domain, operation, year, payload }: OracleComputeParams
   return body;
 }
 
-async function postAnalytics<TResponse>(
-  path: string,
-  body: Record<string, unknown>,
-  options?: { includeOrgIdInPath?: boolean; includeOrgIdInBody?: boolean }
-): Promise<TResponse> {
-  const config = getConfig();
-  const includeOrgIdInPath = options?.includeOrgIdInPath ?? false;
-  const includeOrgIdInBody = options?.includeOrgIdInBody ?? false;
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const directPath =
-    includeOrgIdInPath && config.orgId
-      ? normalizedPath.replace("/analytics/", `/analytics/${config.orgId}/`)
-      : normalizedPath;
-  const endpoint =
-    config.mode === "proxy"
-      ? `${config.baseUrl}${normalizedPath}`
-      : `${config.baseUrl}${directPath}`;
-
-  const requestBody = {
-    ...body,
-    ...(config.mode === "direct" && includeOrgIdInBody && config.orgId ? { orgId: config.orgId } : {}),
-  };
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(config.mode === "direct" ? { "x-api-key": config.apiKey || "" } : {}),
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  const json = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!response.ok) {
-    const message = typeof json.message === "string" ? json.message : `Analytics request failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  return json as TResponse;
-}
-
-async function getAnalytics<TResponse>(
-  path: string,
-  options?: { includeOrgIdInPath?: boolean }
-): Promise<TResponse> {
-  const config = getConfig();
-  const includeOrgIdInPath = options?.includeOrgIdInPath ?? false;
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const directPath =
-    includeOrgIdInPath && config.orgId
-      ? normalizedPath.replace("/analytics/", `/analytics/${config.orgId}/`)
-      : normalizedPath;
-  const endpoint =
-    config.mode === "proxy"
-      ? `${config.baseUrl}${normalizedPath}`
-      : `${config.baseUrl}${directPath}`;
-
-  const response = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(config.mode === "direct" ? { "x-api-key": config.apiKey || "" } : {}),
-    },
-  });
-
-  const json = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!response.ok) {
-    const message = typeof json.message === "string" ? json.message : `Analytics request failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  return json as TResponse;
-}
-
 function parseComputationBreakdown(steps: OracleTraceStep[] | undefined): ComputationBreakdown[] {
   if (!steps || steps.length === 0) return [];
 
@@ -658,49 +590,20 @@ export async function computeCST(params: CSTComputeParams): Promise<CSTCalculati
   };
 }
 
-export async function upsertIncomeStatement(
-  input: IncomeStatementInput
-): Promise<IncomeStatementResult> {
-  return postAnalytics<IncomeStatementResult>("/analytics/income-statement", {
-    year: input.year,
-    quarter: input.quarter,
-    totalRevenue: input.totalRevenue,
-    costOfGoodsSold: input.costOfGoodsSold,
-    operatingExpenses: input.operatingExpenses,
-    depreciationCharge: input.depreciationCharge,
-    interestOnLoans: input.interestOnLoans,
-    corporateTax: input.corporateTax,
-    dividendPayments: input.dividendPayments,
-  }, { includeOrgIdInPath: true });
+// Statements and ratios are calculated in the browser (see lib/financials.ts):
+// they are standard accounting formulas with no tax rules, and keeping them
+// local stops visitors sharing one Oracle account's saved figures.
+
+export async function upsertIncomeStatement(input: IncomeStatementInput): Promise<IncomeStatementResult> {
+  return computeIncomeStatement(input);
 }
 
-export async function upsertBalanceSheet(
-  input: BalanceSheetInput
-): Promise<BalanceSheetResult> {
-  return postAnalytics<BalanceSheetResult>("/analytics/balance-sheet", {
-    year: input.year,
-    quarter: input.quarter,
-    nonCurrentAssets: input.nonCurrentAssets,
-    inventory: input.inventory,
-    accountsReceivable: input.accountsReceivable,
-    cash: input.cash,
-    otherCurrentAssets: input.otherCurrentAssets,
-    currentLiabilities: input.currentLiabilities,
-    accountsPayable: input.accountsPayable,
-    totalDebt: input.totalDebt,
-    totalLiabilities: input.totalLiabilities,
-    shareholdersEquity: input.shareholdersEquity,
-  }, { includeOrgIdInPath: true });
+export async function upsertBalanceSheet(input: BalanceSheetInput): Promise<BalanceSheetResult> {
+  return computeBalanceSheet(input);
 }
 
-export async function getAccountingRatios(
-  year: number,
-  quarter: number
-): Promise<AccountingRatiosResult> {
-  return getAnalytics<AccountingRatiosResult>(
-    `/analytics/ratios/${year}/${quarter}/accounting`,
-    { includeOrgIdInPath: true }
-  );
+export async function getAccountingRatios(year: number, quarter: number): Promise<AccountingRatiosResult> {
+  return computeAccountingRatios(year, quarter);
 }
 
 export async function getFinanceRatios(
@@ -708,18 +611,5 @@ export async function getFinanceRatios(
   quarter: number,
   input: FinanceRatiosInput
 ): Promise<FinanceRatiosResult> {
-  return postAnalytics<FinanceRatiosResult>(
-    `/analytics/ratios/${year}/${quarter}/finance`,
-    {
-      marketPricePerShare: input.marketPricePerShare,
-      sharesOutstanding: input.sharesOutstanding,
-      ...(input.preferredDividends !== undefined ? { preferredDividends: input.preferredDividends } : {}),
-      ...(input.annualDividendsPerShare !== undefined ? { annualDividendsPerShare: input.annualDividendsPerShare } : {}),
-      ...(input.expectedEarningsGrowthRate !== undefined ? { expectedEarningsGrowthRate: input.expectedEarningsGrowthRate } : {}),
-      ...(input.nopat !== undefined ? { nopat: input.nopat } : {}),
-      ...(input.investedCapital !== undefined ? { investedCapital: input.investedCapital } : {}),
-      ...(input.averageAccountsPayable !== undefined ? { averageAccountsPayable: input.averageAccountsPayable } : {}),
-    },
-    { includeOrgIdInPath: true }
-  );
+  return computeFinanceRatios(year, quarter, input);
 }
