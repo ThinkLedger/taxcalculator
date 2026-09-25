@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { PAYE_PERIODS } from "@/lib/rates";
+import { PAYE_PERIODS, TAX_YEARS } from "@/lib/rates";
 
 interface ConfigCardProps {
   calculatorType: string;
@@ -92,7 +92,9 @@ export function ConfigCard({
                     <SelectItem value="2024">2024</SelectItem>
                   </>
                 ) : calculatorType === "CIT" || calculatorType === "WHT" || calculatorType === "RENT" || calculatorType === "CST" ? (
-                  <SelectItem value="2024">2024</SelectItem>
+                  TAX_YEARS.map((taxYear) => (
+                    <SelectItem key={taxYear} value={taxYear}>{taxYear}</SelectItem>
+                  ))
                 ) : (
                   PAYE_PERIODS.map((period) => (
                     <SelectItem key={period.value} value={period.value}>{period.label}</SelectItem>

@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { ConfigCard } from "./_components/config-card";
 import { PAYECalculator } from "./_components/tax/paye-calculator";
-import { CITCalculator } from "./_components/tax/cit-calculator";
+import { CITCalculator, DEFAULT_CIT_CATEGORY } from "./_components/tax/cit-calculator";
 import { CSTCalculator } from "./_components/tax/cst-calculator";
 import { AccountingRatiosCalculator } from "./_components/tax/accounting-ratios-calculator";
 import { BalanceSheetCalculator } from "./_components/tax/balance-sheet-calculator";
@@ -61,13 +61,14 @@ import { VATBreakdownCard } from "./_components/vat/vat-breakdown-card";
 import { MobileConfigDialog } from "./_components/mobile-config-dialog";
 import { MobileBreakdownDialog } from "./_components/tax/mobile-breakdown-dialog";
 import { MobileVATBreakdownDialog } from "./_components/vat/mobile-vat-breakdown-dialog";
-import { isPayePeriod, LATEST_PAYE_PERIOD, payePeriodLabel } from "@/lib/rates";
+import { isPayePeriod, LATEST_PAYE_PERIOD, payePeriodLabel, TAX_YEARS } from "@/lib/rates";
 
 export default function Home() {
   const [monthlyBasicIncome, setMonthlyBasicIncome] = useState("");
   const [monthlyAllowances, setMonthlyAllowances] = useState("");
   const [taxRelief, setTaxRelief] = useState("");
   const [citTaxableIncome, setCitTaxableIncome] = useState("");
+  const [citCategory, setCitCategory] = useState<string>(DEFAULT_CIT_CATEGORY);
   const [whtPaymentAmount, setWhtPaymentAmount] = useState("");
   const [whtCounterpartyType, setWhtCounterpartyType] = useState<"resident" | "non_resident">("resident");
   const [whtIncomeCategory, setWhtIncomeCategory] = useState<string>(WHT_CATEGORIES.resident[0].value);
@@ -123,7 +124,8 @@ export default function Home() {
     if (value === "VAT") {
       setYear("2026");
     } else if (value === "CIT" || value === "WHT" || value === "RENT" || value === "CST") {
-      setYear("2024");
+      // These rates have not changed since 2024, so any recent year applies.
+      setYear(TAX_YEARS[0]);
     } else if (
       value === "INCOME_STATEMENT" ||
       value === "BALANCE_SHEET" ||
@@ -231,7 +233,7 @@ export default function Home() {
     setIsCitLoading(true);
     setCitErrorMessage(undefined);
 
-    computeCIT({ year, taxableIncome })
+    computeCIT({ year, taxableIncome, category: citCategory })
       .then((apiResult) => {
         if (!active) return;
         setCitResult(apiResult);
@@ -251,7 +253,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [calculatorType, citTaxableIncome, year]);
+  }, [calculatorType, citTaxableIncome, citCategory, year]);
 
   useEffect(() => {
     if (calculatorType !== "WHT") return;
@@ -576,6 +578,8 @@ export default function Home() {
               <CITCalculator
                 taxableIncome={citTaxableIncome}
                 onTaxableIncomeChange={setCitTaxableIncome}
+                category={citCategory}
+                onCategoryChange={setCitCategory}
                 result={citResult}
                 isLoading={isCitLoading}
                 errorMessage={citErrorMessage}
@@ -1012,12 +1016,12 @@ export default function Home() {
             )}
             {calculatorType === "CIT" && (
               <p className="text-center text-xs text-muted-foreground mt-4">
-                Last updated: January 1st, 2024
+                Last updated: September 25th, 2026 (checked against GRA)
               </p>
             )}
             {calculatorType === "WHT" && (
               <p className="text-center text-xs text-muted-foreground mt-4">
-                Last updated: January 1st, 2024
+                Last updated: September 25th, 2026 (checked against GRA)
               </p>
             )}
             {calculatorType === "RENT" && (

@@ -56,6 +56,8 @@ interface VATComputeParams {
 interface CITComputeParams {
   year: string;
   taxableIncome: number;
+  /** Key in the Oracle CIT rate table, e.g. "standard", "hotel". */
+  category?: string;
 }
 
 export interface CITCalculationResult {
@@ -566,7 +568,7 @@ export async function computeCIT(params: CITComputeParams): Promise<CITCalculati
     payload: {
       taxableIncome: params.taxableIncome,
       counterpartyType: "general",
-      citCategory: "standard",
+      citCategory: params.category ?? "standard",
     },
   });
 
