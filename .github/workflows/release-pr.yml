@@ -1,0 +1,101 @@
+name: Release PR (staging → main)
+
+# Every push to staging is checked, then a single release PR from staging to
+# main is opened (or refreshed) listing what is waiting to ship. Merging it
+# deploys the site and publishes a GitHub Release.
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Build
+        run: bun run build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_FINANCE_ORACLE_PROXY_URL: ${{ vars.NEXT_PUBLIC_FINANCE_ORACLE_PROXY_URL }}
+
+  release-pr:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Open or update the release PR
+        env:
+          # The built-in token can only open PRs when the org and repo allow
+          # "GitHub Actions to create and approve pull requests". A
+          # RELEASE_PR_TOKEN secret (fine-grained PAT: pull requests +
+          # contents on this repo) works regardless.
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch origin main staging
+
+          commits=$(git log --no-merges --format='- %s (%h)' origin/main..origin/staging)
+          if [ -z "$commits" ]; then
+            echo "staging has nothing that main does not; no release PR needed."
+            exit 0
+          fi
+
+          body=$(printf '## Waiting to ship\n\n%s\n\nMerging this PR deploys https://thinkledger.github.io/taxcalculator/ and publishes a GitHub Release.\n' "$commits")
+          title="Release: staging → main ($(date -u +%Y-%m-%d))"
+
+          existing=$(gh pr list --base main --head staging --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body "$body"
+            echo "Updated release PR #$existing"
+            exit 0
+          fi
+
+          if ! output=$(gh pr create --base main --head staging --title "$title" --body "$body" 2>&1); then
+            echo "$output"
+            if grep -q "not permitted to create or approve pull requests" <<< "$output"; then
+              # Not a problem with the code: staging passed its checks. Point at
+              # a one-click PR instead of failing the run.
+              compare="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...staging?expand=1"
+              echo "::warning title=Release PR not opened::GitHub Actions is not allowed to open PRs here. Open it yourself: $compare — or allow it under Settings → Actions → General → Workflow permissions (org and repo), or add a RELEASE_PR_TOKEN secret."
+              {
+                echo "### Release PR not opened automatically"
+                echo "Staging passed lint, type check and build. [Open the staging → main PR]($compare)."
+                echo
+                echo "To automate it: allow *GitHub Actions to create and approve pull requests* in the ThinkLedger org and this repo (Settings → Actions → General), or add a \`RELEASE_PR_TOKEN\` secret."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            exit 1
+          fi
+          echo "$output"
