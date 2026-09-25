@@ -107,6 +107,12 @@ export const PAYE_PERIODS = [
 ] as const;
 export const LATEST_PAYE_PERIOD = PAYE_PERIODS[0].value;
 
+/**
+ * Years offered for CIT, WHT, rent tax and CST. Their Oracle rule packs have
+ * applied unchanged since 1 January 2024, so each of these years resolves.
+ */
+export const TAX_YEARS = ["2026", "2025", "2024"] as const;
+
 export function isPayePeriod(value: string): boolean {
   return PAYE_PERIODS.some((period) => period.value === value);
 }
