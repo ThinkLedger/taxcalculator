@@ -56,7 +56,11 @@ jobs:
 
       - name: Open or update the release PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The built-in token can only open PRs when the org and repo allow
+          # "GitHub Actions to create and approve pull requests". A
+          # RELEASE_PR_TOKEN secret (fine-grained PAT: pull requests +
+          # contents on this repo) works regardless.
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git fetch origin main staging
@@ -74,6 +78,24 @@ jobs:
           if [ -n "$existing" ]; then
             gh pr edit "$existing" --title "$title" --body "$body"
             echo "Updated release PR #$existing"
-          else
-            gh pr create --base main --head staging --title "$title" --body "$body"
+            exit 0
           fi
+
+          if ! output=$(gh pr create --base main --head staging --title "$title" --body "$body" 2>&1); then
+            echo "$output"
+            if grep -q "not permitted to create or approve pull requests" <<< "$output"; then
+              # Not a problem with the code: staging passed its checks. Point at
+              # a one-click PR instead of failing the run.
+              compare="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...staging?expand=1"
+              echo "::warning title=Release PR not opened::GitHub Actions is not allowed to open PRs here. Open it yourself: $compare — or allow it under Settings → Actions → General → Workflow permissions (org and repo), or add a RELEASE_PR_TOKEN secret."
+              {
+                echo "### Release PR not opened automatically"
+                echo "Staging passed lint, type check and build. [Open the staging → main PR]($compare)."
+                echo
+                echo "To automate it: allow *GitHub Actions to create and approve pull requests* in the ThinkLedger org and this repo (Settings → Actions → General), or add a \`RELEASE_PR_TOKEN\` secret."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            exit 1
+          fi
+          echo "$output"
